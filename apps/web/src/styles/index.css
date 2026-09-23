@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global styles derived from the Stitch design tokens (CPCL e-Procurement
+   Portal screens). See tailwind.config.ts for the color/font tokens. */
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Utility used by the Bidder Login CAPTCHA box. */
+.captcha-noise {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(26, 90, 166, 0.06) 0px,
+    rgba(26, 90, 166, 0.06) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+}

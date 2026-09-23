@@ -1,0 +1,16 @@
+{
+  "name": "gem-portal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-powered government/tender/document intelligence platform (GeM Portal) — monorepo root",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:gateway": "npm run dev --workspace=apps/gateway",
+    "build:web": "npm run build --workspace=apps/web",
+    "build:gateway": "npm run build --workspace=apps/gateway"
+  }
+}

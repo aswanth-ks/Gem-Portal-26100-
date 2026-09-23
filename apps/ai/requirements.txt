@@ -1,0 +1,21 @@
+# GeM Portal AI service — dependency list.
+# TODO: pin exact versions before first real implementation; kept loose here
+# since this stage only establishes architecture, not working AI logic.
+
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+motor            # async MongoDB driver
+python-dotenv
+
+# AI / NLP (introduced as pipelines are implemented — not wired up yet)
+# langchain
+# spacy
+# paddleocr
+# pytesseract
+# layoutlm  # via transformers
+
+# Dev
+pytest
+httpx

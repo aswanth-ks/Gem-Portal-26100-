@@ -1,0 +1,49 @@
+# Local demo composition: frontend, Node gateway, FastAPI AI service, MongoDB.
+# Intentionally minimal at this architectural stage — see infrastructure/docker
+# Dockerfiles (also placeholders) and ARCHITECTURE.md. NOT tuned for
+# production; MeghRaj/NIC Cloud deployment is documented separately.
+
+version: "3.9"
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+    ports:
+      - "5173:5173"
+    env_file: .env
+    depends_on:
+      - gateway
+
+  gateway:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/gateway.Dockerfile
+    ports:
+      - "4000:4000"
+    env_file: .env
+    depends_on:
+      - ai
+      - mongodb
+
+  ai:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/ai.Dockerfile
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./infrastructure/mongodb/init:/docker-entrypoint-initdb.d
+
+volumes:
+  mongodb_data:
