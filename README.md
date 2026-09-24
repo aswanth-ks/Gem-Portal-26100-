@@ -1,78 +1,70 @@
-# GeM Portal
+# 🚀 GeM Portal
 
-AI-powered government/tender/document intelligence platform. This repository
-is a monorepo covering the frontend, API gateway, AI backend services, and
-supporting infrastructure.
+## AI-Powered Government Tender & Document Intelligence
 
-> **Status:** architectural scaffold only. No business functionality or UI
-> has been implemented yet. The frontend will be built page-by-page from
-> Stitch/Figma designs; see [ARCHITECTURE.md](./ARCHITECTURE.md) for the full
-> system design and the current placeholder map.
+GeM Portal is an intelligent platform designed to help users efficiently process, understand, and extract key information from complex government tender documents using AI, OCR, and advanced search capabilities.
 
-## Monorepo layout
+> Built for Smart India Hackathon (SIH)
 
-```
-apps/
-  web/        React + Vite + TypeScript + Tailwind frontend
-  gateway/    Node.js + Express + TypeScript API gateway
-  ai/         Python + FastAPI AI/backend microservices
-packages/     Shared code across apps (types, API contracts, UI, config, validation)
-services/     Conceptual boundaries for AI microservices that may be split out of apps/ai later
-infrastructure/ Docker, MongoDB init, nginx, deployment, MeghRaj/NIC Cloud notes
-scripts/      Setup, seed, and development convenience scripts
-docs/         Detailed documentation per subsystem
-```
+## 💡 1. PROBLEM
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for the complete breakdown of every
-directory, data flow, and security model.
+Government tender documents can be large, complex, and difficult to understand. Important requirements, eligibility conditions, dates, clauses, and supporting documents may be spread across many pages.
 
-## Tech stack
+Manual searching and verification takes time and can lead to missed information, making the tender bidding and evaluation process slow and error-prone.
 
-| Layer | Stack |
-|---|---|
-| Frontend | React, Vite, TypeScript, Tailwind CSS, React Router |
-| API Gateway | Node.js, Express, TypeScript |
-| AI / Backend | Python, FastAPI, LangChain, spaCy, LayoutLM, PaddleOCR, Tesseract, Llama 3, Bhashini |
-| Database (demo) | MongoDB (production target: PostgreSQL + pgvector — see migration path in ARCHITECTURE.md) |
-| Integrations | DigiLocker, GeM APIs, government verification systems |
-| Cloud | MeghRaj / NIC Cloud (target deployment environment) |
-| Security | OAuth2, AES-256, SHA-256, RBAC, audit trail |
+## 🎯 2. OUR SOLUTION
 
-## Getting started (once implementation begins)
+Our platform automates and simplifies the analysis of tender documents. It uses Optical Character Recognition (OCR) to extract text from scanned files, and Natural Language Processing (NLP) powered by AI to understand the content. 
 
-```bash
-# install dependencies across workspaces
-npm install
+By leveraging RAG (Retrieval-Augmented Generation), users can ask questions about the document and get accurate answers instantly. The system also supports document processing and secure verification workflows to ensure compliance and authenticity.
 
-# copy environment template
-cp .env.example .env
+## 🧠 3. HOW IT WORKS
 
-# run each app in development (once implemented)
-npm run dev:web        # apps/web
-npm run dev:gateway     # apps/gateway
-# apps/ai: uvicorn app.main:app --reload --port 8000 (from apps/ai, with a Python env)
+```mermaid
+flowchart LR
+    A[Upload Tender] --> B[OCR & Text Extraction]
+    B --> C[Document Processing]
+    C --> D[AI & RAG]
+    D --> E[Relevant Information]
+    E --> F[User Dashboard]
 ```
 
-Local demo services (web, gateway, AI, MongoDB) can also be run via
-`docker-compose.yml` once the corresponding Dockerfiles are filled in.
+## 🛠️ 4. TECHNOLOGY
 
-## Development workflow
+The project uses a scalable monorepo architecture:
 
-The frontend is built in two parallel tracks:
+- **Frontend:** React, Vite, TypeScript, Tailwind CSS
+- **API Gateway:** Node.js, Express, TypeScript
+- **AI Backend:** Python, FastAPI, LangChain, Llama 3, OCR Tools (PaddleOCR, Tesseract)
+- **Integrations:** DigiLocker, GeM APIs, Government verification
 
-1. **Stitch/Figma design** produces a UI specification for a page.
-2. **React implementation** turns that specification into a page component,
-   reusable primitives, API integration, and finally backend functionality.
+### ⚠️ Important Database Note
+For the **CURRENT DEMO**, we are using **MongoDB**. 
+The original long-term production architecture is designed to use **PostgreSQL + pgvector** to support native AI vector search. However, PostgreSQL + pgvector is **NOT** the current demo database. The system is built with repository interfaces to allow swapping databases seamlessly in the future.
 
-See ARCHITECTURE.md → "Frontend architecture" for how the codebase is
-structured to make this reproducible per page.
+## ✨ 5. FEATURES
 
-## Contributing conventions
+| Feature | What it does |
+|---------|--------------|
+| 📄 Document Processing | Processes uploaded tender documents |
+| 🔍 OCR | Extracts text from scanned documents |
+| 🧠 Tender Understanding | Identifies important tender information |
+| 📌 Clause Extraction | Finds important clauses and requirements |
+| 🔎 Smart Search | Retrieves relevant information |
+| 🤖 AI Assistant | Answers questions using document context |
+| 🔐 Verification | Supports verification workflows |
+| 🤝 Consent Verification | Supports consent-based verification |
+| 🧾 Audit Trail | Keeps track of important activities |
 
-- Do not put API calls directly inside React components — use `services/api`
-  and feature-level `api/` modules.
-- Do not put AI logic inside FastAPI route handlers — use `app/pipelines`.
-- Do not put database queries directly inside business services — use the
-  `app/repositories` abstraction.
-- Do not couple business logic directly to MongoDB — see the PostgreSQL +
-  pgvector migration path in ARCHITECTURE.md.
+## 📊 6. CURRENT STATUS
+
+The project is currently in the **Architectural Scaffolding Phase**. 
+- Directory structures, API routing, and Docker configurations are established.
+- The features listed above are **Planned** and **Under Development**.
+- Business functionality and UI implementation are upcoming.
+
+## 🚀 7. FUTURE SCOPE
+
+- Full integration of AI extraction pipelines and LLMs.
+- Live deployment to MeghRaj / NIC Cloud.
+- Transition from MongoDB to PostgreSQL + pgvector for optimized embeddings retrieval.
