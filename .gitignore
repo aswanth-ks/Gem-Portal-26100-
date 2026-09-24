@@ -27,3 +27,6 @@ Thumbs.db
 # Misc
 coverage/
 .cache/
+
+# TypeScript incremental build info
+*.tsbuildinfo

@@ -2,14 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global styles derived from the Stitch design tokens (CPCL e-Procurement
-   Portal screens). See tailwind.config.ts for the color/font tokens. */
+/* GeM Portal global styles. Colors/spacing/radii/shadows live in
+   tailwind.config.ts — this file only holds base resets and the few
+   component-level helpers that are awkward to express as utilities. */
 
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background font-sans text-body-md text-on-surface antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  ::selection {
+    @apply bg-secondary-fixed text-on-secondary-fixed;
+  }
+  :focus-visible {
+    outline: none;
+  }
+}
+
+@layer components {
+  /* Visible, subtle keyboard focus ring for any interactive element. */
+  .focus-ring {
+    @apply focus-visible:shadow-focus focus-visible:outline-none;
+  }
+  /* Tabular numerals for values, dates and reference IDs. */
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Thin, unobtrusive scrollbars inside scrollable regions (tables, drawers). */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.outline-variant') transparent;
+  }
+}
+
+/* Material Symbols — the single icon system for the whole product. Weight 400
+   at optical size 20 keeps stroke weight consistent with Inter body text. */
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined';
   font-weight: normal;
   font-style: normal;
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1;
   letter-spacing: normal;
   text-transform: none;
@@ -17,17 +53,34 @@
   white-space: nowrap;
   word-wrap: normal;
   direction: ltr;
+  flex-shrink: 0;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
   -webkit-font-feature-settings: 'liga';
   -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+.material-symbols-outlined.icon-fill {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
 }
 
-/* Utility used by the Bidder Login CAPTCHA box. */
+/* Bidder Login CAPTCHA box texture (only intentional one-off pattern). */
 .captcha-noise {
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(26, 90, 166, 0.06) 0px,
-    rgba(26, 90, 166, 0.06) 2px,
+    rgb(0 80 215 / 0.06) 0px,
+    rgb(0 80 215 / 0.06) 2px,
     transparent 2px,
     transparent 4px
   );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

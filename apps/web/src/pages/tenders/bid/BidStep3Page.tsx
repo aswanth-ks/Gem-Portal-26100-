@@ -1,53 +1,69 @@
-// Bid Submission Workspace — Step 03: Review & Confirm. Ported from the
-// Stitch screen "CPCL Bidder Portal - Bid Submission Workspace (Step 03:
-// Review & Confirm)" (project: GeM Portal). Source: Stitch project
-// 6921642772921774119, screen 7476c41c6e4a42d19be361cc8aa22aa5.
+// Bid Submission Workspace — Step 3: Review & confirm. Ported from Stitch
+// screen "Bid Submission Workspace (Step 03: Review & Confirm)" (project
+// 6921642772921774119, screen 7476c41c6e4a42d19be361cc8aa22aa5).
 //
-// This screen's Stitch prototype ships 6 interactive states (Review &
-// Ready / Confirm Modal / Submitting Loader / Success Receipt / Submission
-// Error / Tender Closed) driven by an inline <script> state-switcher —
-// reimplemented below as React state. The "Interactive Prototype State"
-// switcher strip is kept (as the other ported screens keep theirs) so the
-// demo states remain inspectable; the real submit flow (declarations ->
-// confirm modal -> submitting -> success/error) also drives the same state
-// via executeSubmissionFlow().
+// Six prototype states (Review / Confirm modal / Submitting / Success /
+// Error / Closed) are React state; the real flow (declarations → confirm →
+// submitting → success) drives the same state.
 //
-// TODO: replace the mock declarations/receipt data and the demo submission
-// timer with a real POST /api/tenders/:ref/bid/submit call once the gateway
-// exposes it, and drop the prototype state switcher once real submission
-// failure/success responses can be exercised directly.
+// TODO: replace the demo submission timer with POST /api/tenders/:ref/bid/submit.
 
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BidderPortalShell } from '@/layouts/BidderPortalShell';
-import { BID_TENDER, BidStepper } from './BidWorkspaceChrome';
+import {
+  Button,
+  Callout,
+  Card,
+  CardHeader,
+  CellStack,
+  Checkbox,
+  DescriptionList,
+  EmptyState,
+  Icon,
+  Modal,
+  PageHeader,
+  StatusBadge,
+  Table,
+  TBody,
+  Td,
+  Th,
+  THead,
+  Tr,
+  Tabs,
+  Tag,
+} from '@/components/primitives';
+import { cn } from '@/utils/cn';
+import { BID_TENDER, BidActionBar, BidStepper, TenderContextBanner } from './BidWorkspaceChrome';
 
 type ScreenState = 'default' | 'modal' | 'submitting' | 'success' | 'error' | 'closed';
 
 const STATE_BUTTONS: { id: ScreenState; label: string }[] = [
-  { id: 'default', label: '1. Review & Ready' },
-  { id: 'modal', label: '2. Confirm Modal' },
-  { id: 'submitting', label: '3. Submitting Loader' },
-  { id: 'success', label: '4. Success Receipt' },
-  { id: 'error', label: '5. Submission Error' },
-  { id: 'closed', label: '6. Tender Closed' },
+  { id: 'default', label: 'Review' },
+  { id: 'modal', label: 'Confirm modal' },
+  { id: 'submitting', label: 'Submitting' },
+  { id: 'success', label: 'Success' },
+  { id: 'error', label: 'Error' },
+  { id: 'closed', label: 'Closed' },
 ];
 
 const DOCUMENTS_SUMMARY = [
-  { n: '01', name: 'Permanent Account Number (PAN) Card', desc: 'Statutory Tax Entity Verification', file: 'PAN_Certificate.pdf', size: '1.2 MB', type: 'Mandatory', status: 'Staged & Signed' },
-  { n: '02', name: 'GST Registration Certificate', desc: 'Form GST REG-06 with Annexure A & B', file: 'GST_Certificate.pdf', size: '856 KB', type: 'Mandatory', status: 'Staged & Signed' },
-  { n: '03', name: 'Audited Financial Statements (Last 3 FYs)', desc: 'Balance Sheet & P&L Certified by CA with UDIN', file: 'Financial_Statements_2025.pdf', size: '3.4 MB', type: 'Mandatory', status: 'Staged & Signed' },
-  { n: '04', name: 'Udyam / MSME Certificate', desc: 'Statutory exemption claim under PP Policy 2012', file: 'Udyam_Certificate.pdf', size: '642 KB', type: 'Conditional', status: 'EMD Exemption Claimed' },
-  { n: '05', name: 'OEM Manufacturer Authorization Form (MAF)', desc: 'Direct OEM Authorization for CCTV Optics & NVRs', file: 'OEM_Authorization.pdf', size: '1.8 MB', type: 'Mandatory', status: 'Staged & Signed' },
-  { n: '06', name: 'Technical Compliance Statement (Section IV)', desc: 'Line-by-line parameter matrix compliance signed', file: 'Technical_Compliance.pdf', size: '2.1 MB', type: 'Mandatory', status: 'Staged & Signed' },
-  { n: '07', name: 'Experience & Past Work Order Certificate', desc: 'Proof of 3 similar public infrastructure camera rollouts', file: 'Experience_Certificate.pdf', size: '1.5 MB', type: 'Mandatory', status: 'Staged & Signed' },
+  { n: '01', name: 'Permanent Account Number (PAN) card', desc: 'Statutory tax entity verification', file: 'PAN_Certificate.pdf', size: '1.2 MB', type: 'mandatory' as const, status: 'Staged & signed' },
+  { n: '02', name: 'GST registration certificate', desc: 'Form GST REG-06 with annexures A & B', file: 'GST_Certificate.pdf', size: '856 KB', type: 'mandatory' as const, status: 'Staged & signed' },
+  { n: '03', name: 'Audited financial statements (3 FYs)', desc: 'Balance sheet & P&L certified with UDIN', file: 'Financial_Statements_2025.pdf', size: '3.4 MB', type: 'mandatory' as const, status: 'Staged & signed' },
+  { n: '04', name: 'Udyam / MSME certificate', desc: 'Exemption claim under PP Policy 2012', file: 'Udyam_Certificate.pdf', size: '642 KB', type: 'conditional' as const, status: 'EMD exemption claimed' },
+  { n: '05', name: 'OEM Manufacturer Authorization (MAF)', desc: 'Direct OEM authorization for optics & NVRs', file: 'OEM_Authorization.pdf', size: '1.8 MB', type: 'mandatory' as const, status: 'Staged & signed' },
+  { n: '06', name: 'Technical compliance statement (§IV)', desc: 'Line-by-line parameter compliance', file: 'Technical_Compliance.pdf', size: '2.1 MB', type: 'mandatory' as const, status: 'Staged & signed' },
+  { n: '07', name: 'Experience & past work order certificate', desc: '3 similar public camera rollouts', file: 'Experience_Certificate.pdf', size: '1.5 MB', type: 'mandatory' as const, status: 'Staged & signed' },
 ];
 
 const DECLARATIONS = [
-  { id: 'decl-1', text: 'I confirm that the information provided in this bid is accurate, authentic, and complete to the best of my knowledge and belief.', sub: 'In accordance with CPCL Bidder Undertaking Norms (Clause 5.1).' },
-  { id: 'decl-2', text: 'I confirm that all uploaded documents correspond directly to the bidder and satisfy tender specifications without misrepresentation.', sub: 'Validates genuine OEM specifications and certified financial statements without alteration.' },
-  { id: 'decl-3', text: 'I have reviewed and agree to abide by the General Conditions of Contract (GCC), Special Conditions of Contract (SCC), and CVC integrity guidelines.', sub: 'Statutory adherence to anti-collusion, transparent bidding, and prompt execution agreements.' },
+  { id: 'decl-1', text: 'The information provided in this bid is accurate, authentic and complete to the best of my knowledge.', sub: 'CPCL Bidder Undertaking Norms, Clause 5.1' },
+  { id: 'decl-2', text: 'All uploaded documents belong to the bidder and satisfy tender specifications without misrepresentation.', sub: 'Genuine OEM specifications and unaltered certified financials' },
+  { id: 'decl-3', text: 'I have reviewed and agree to the GCC, SCC and CVC integrity guidelines.', sub: 'Anti-collusion, transparent bidding and prompt execution' },
 ];
+
+const LOADER_STEPS = ['Validating bidder basic details', 'Validating 7 document digests', 'Recording in digital procurement ledger', 'Generating statutory receipt'];
 
 export function BidStep3Page() {
   const { ref } = useParams<{ ref: string }>();
@@ -55,7 +71,7 @@ export function BidStep3Page() {
   const tenderRef = ref ? decodeURIComponent(ref) : BID_TENDER.ref;
 
   const [screen, setScreen] = useState<ScreenState>('default');
-  const [declarations, setDeclarations] = useState({ 'decl-1': true, 'decl-2': true, 'decl-3': true });
+  const [declarations, setDeclarations] = useState<Record<string, boolean>>({ 'decl-1': true, 'decl-2': true, 'decl-3': true });
   const [loaderStage, setLoaderStage] = useState<0 | 1>(0);
 
   const declaredCount = Object.values(declarations).filter(Boolean).length;
@@ -82,629 +98,394 @@ export function BidStep3Page() {
     setScreen('modal');
   }
 
-  function executeSubmissionFlow() {
-    setScreen('submitting');
-  }
+  const doneSteps = loaderStage === 0 ? 2 : 3;
+  const showWorkspace = screen === 'default' || screen === 'modal' || screen === 'submitting';
 
   return (
     <BidderPortalShell breadcrumb="Bid Submission">
-      <div className="flex flex-col w-full px-space-lg py-space-md">
-        {/* Interactive Prototype States Controller / Switcher Bar */}
-        <div className="mb-space-md p-space-sm bg-surface-container-high rounded-lg flex flex-wrap items-center justify-between gap-space-sm shadow-sm">
-          <div className="flex items-center gap-space-xs font-label-sm text-label-sm text-on-surface">
-            <span className="material-symbols-outlined text-[18px] text-secondary">tune</span>
-            <span className="uppercase tracking-wider font-semibold">Interactive Prototype State:</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {STATE_BUTTONS.map((btn) => (
-              <button
-                key={btn.id}
-                className={
-                  'px-space-sm py-1 rounded font-label-sm text-label-sm transition-all ' +
-                  (screen === btn.id ? 'bg-primary-container text-on-primary font-semibold shadow-sm' : 'bg-surface-container-lowest text-on-surface hover:bg-surface-container-low')
-                }
-                onClick={() => setScreen(btn.id)}
-                type="button"
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
+      <div className={cn('flex flex-col gap-8', showWorkspace && 'pb-28')}>
+        {/* Prototype state switcher */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-dashed border-outline-variant bg-surface-container-lowest/60 px-4 py-2.5">
+          <span className="inline-flex items-center gap-2 text-[12px] font-medium text-on-surface-variant">
+            <Icon name="science" size="sm" className="text-outline" />
+            Prototype states
+          </span>
+          <Tabs variant="pills" ariaLabel="Prototype state" value={screen} onChange={setScreen} items={STATE_BUTTONS} />
         </div>
 
-        {(screen === 'default' || screen === 'modal' || screen === 'submitting') && (
-          <div className="flex flex-col gap-space-md">
-            {/* Compact Tender Context Banner */}
-            <div className="bg-surface-container-lowest rounded-lg p-space-md shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-space-md">
-              <div className="flex flex-col gap-1">
-                <div className="flex flex-wrap items-center gap-space-sm">
-                  <span className="font-mono font-semibold text-label-md px-2 py-0.5 rounded bg-surface-container text-on-surface">{tenderRef}</span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-on-surface font-label-sm text-label-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant"></span>
-                    DRAFT
-                  </span>
-                  <span className="font-label-sm text-label-sm text-error flex items-center gap-1 font-semibold">
-                    <span className="material-symbols-outlined text-[16px]">schedule</span>
-                    Deadline: {BID_TENDER.deadline} (2 Days Remaining)
-                  </span>
-                </div>
-                <h1 className="font-headline-sm text-headline-sm text-on-surface tracking-tight mt-1">{BID_TENDER.title}</h1>
-              </div>
-              <div className="flex items-center gap-space-md self-start lg:self-center">
-                <div className="hidden sm:flex flex-col text-right">
-                  <span className="font-label-sm text-label-sm text-on-surface font-semibold flex items-center justify-end gap-1 text-secondary">
-                    <span className="material-symbols-outlined text-[16px]">verified_user</span>
-                    Encrypted Workspace
-                  </span>
-                  <span className="font-body-sm text-body-sm text-on-surface-variant">Autosaved just now</span>
-                </div>
-                <div className="h-8 w-px bg-outline-variant hidden sm:block"></div>
-                <div className="px-space-sm py-1.5 rounded bg-surface-container-low flex items-center gap-2">
-                  <span className="font-mono text-label-sm text-on-surface-variant">Draft ID:</span>
-                  <span className="font-mono font-semibold text-label-sm text-on-surface">{BID_TENDER.draftId}</span>
-                </div>
-              </div>
-            </div>
+        {showWorkspace && (
+          <>
+            <PageHeader
+              breadcrumbs={[{ label: 'Tenders', to: '/tenders' }, { label: tenderRef, to: `/tenders/${encodeURIComponent(tenderRef)}` }, { label: 'Bid submission' }]}
+              eyebrow={<StatusBadge tone="info">Step 3 of 3 · final</StatusBadge>}
+              title="Review & confirm"
+              description="Check your details and documents, affirm the statutory declarations, then seal and submit."
+              actions={
+                <span className="inline-flex items-center gap-2 text-body-sm text-on-surface-variant">
+                  <Icon name="verified_user" size="md" className="text-success" />
+                  Encrypted workspace · autosaved
+                </span>
+              }
+            />
 
+            <TenderContextBanner tenderRef={tenderRef} />
             <BidStepper current={3} />
 
-            {/* Statutory Notice Callout Banner */}
-            <div className="bg-surface-container-low rounded-lg p-space-md flex items-start gap-space-md shadow-sm">
-              <div className="w-9 h-9 rounded-lg bg-secondary-container/15 text-secondary flex items-center justify-center shrink-0 mt-0.5">
-                <span className="material-symbols-outlined text-[22px]">info</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-label-lg text-label-lg text-on-surface font-semibold">Important CVC Procurement Advisory</span>
-                  <span className="font-label-sm text-label-sm px-2 py-0.5 rounded bg-surface-container text-on-surface-variant font-mono">CLAUSE-24.B</span>
-                </div>
-                <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
-                  Once submitted, the bid cannot be edited unless the tender authority issues a formal corrigendum permitting revision or withdrawal
-                  under CVC guidelines. Please verify that all statutory credentials and uploaded specifications match the qualifying tender
-                  mandates.
-                </p>
-              </div>
-            </div>
+            <Callout tone="warning" title={<span className="flex flex-wrap items-center gap-2">CVC procurement advisory <Tag mono>CLAUSE-24.B</Tag></span>}>
+              Once submitted, the bid cannot be edited unless the tender authority issues a formal corrigendum permitting revision or withdrawal. Verify that credentials and specifications match the tender mandates.
+            </Callout>
 
-            {/* SECTION 1: BIDDER DETAILS REVIEW */}
-            <section className="bg-surface-container-lowest rounded-lg shadow-sm overflow-hidden">
-              <div className="p-space-md bg-surface-container-low flex flex-wrap items-center justify-between gap-space-sm">
-                <div className="flex items-center gap-space-sm">
-                  <div className="w-8 h-8 rounded bg-surface-container flex items-center justify-center text-on-surface">
-                    <span className="material-symbols-outlined text-[20px]">corporate_fare</span>
-                  </div>
-                  <div>
-                    <h2 className="font-label-lg text-label-lg text-on-surface font-semibold">1. Bidder Details</h2>
-                    <p className="font-body-sm text-body-sm text-on-surface-variant">Validated corporate identity from Vendor Registry</p>
-                  </div>
-                </div>
-                <button
-                  className="inline-flex items-center gap-1.5 px-space-md py-1.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface font-label-sm text-label-sm transition-colors shadow-sm"
-                  onClick={() => navigate(`/tenders/${encodeURIComponent(tenderRef)}/bid/1`)}
-                  type="button"
-                >
-                  <span className="material-symbols-outlined text-[16px]">edit</span>
-                  Edit Basic Details
-                </button>
-              </div>
-              <div className="p-space-lg">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-space-lg">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Registered Entity Name</span>
-                    <span className="font-label-lg text-label-lg text-on-surface font-semibold">ABC Engineering Pvt Ltd</span>
-                    <span className="font-body-sm text-body-sm text-on-surface-variant font-mono">Vendor Ref: BIDDER-00482</span>
-                  </div>
-                  <div className="flex flex-col gap-1 md:col-span-2">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Registered Corporate Address</span>
-                    <span className="font-body-md text-body-md text-on-surface">45 Industrial Estate Road, Guindy, Chennai, Tamil Nadu - 600032</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Authorized Contact Signatory</span>
-                    <span className="font-label-lg text-label-lg text-on-surface font-medium">Arun Kumar</span>
-                    <span className="font-body-sm text-body-sm text-on-surface-variant">Procurement Manager</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Mobile Number</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-body-md text-body-md font-mono text-on-surface">+91 98401 23456</span>
-                      <span className="px-1.5 py-0.5 rounded bg-surface-container text-secondary font-label-sm text-label-sm font-semibold flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[13px]">check_circle</span> OTP Verified
+            {/* 1. Bidder details */}
+            <Card padding="lg">
+              <CardHeader
+                icon="corporate_fare"
+                title="1 · Bidder details"
+                description="Validated corporate identity from the vendor registry"
+                actions={
+                  <Button variant="secondary" size="sm" leftIcon="edit" onClick={() => navigate(`/tenders/${encodeURIComponent(tenderRef)}/bid/1`)}>
+                    Edit
+                  </Button>
+                }
+              />
+              <DescriptionList
+                columns={3}
+                items={[
+                  { label: 'Registered entity', value: <CellStack primary="ABC Engineering Pvt Ltd" secondary={<span className="font-mono">BIDDER-00482</span>} /> },
+                  { label: 'Authorized signatory', value: <CellStack primary="Arun Kumar" secondary="Procurement Manager" /> },
+                  { label: 'Registered address', value: '45 Industrial Estate Road, Guindy, Chennai, TN 600032' },
+                  {
+                    label: 'Mobile',
+                    value: (
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono">+91 98401 23456</span>
+                        <StatusBadge status="verified">OTP verified</StatusBadge>
                       </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Official E-Mail</span>
-                    <span className="font-body-md text-body-md font-mono text-on-surface">procurement@abcengineering.example</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Corporate PAN</span>
-                    <span className="font-body-md text-body-md font-mono font-semibold text-on-surface">ABCDE1234F</span>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">GSTIN Identifier</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-body-md text-body-md font-mono font-semibold text-on-surface">33ABCDE1234F1Z5</span>
-                      <span className="font-label-sm text-label-sm text-on-surface-variant">(State 33 - TN)</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">CIN / Incorporation Number</span>
-                    <span className="font-body-md text-body-md font-mono text-on-surface">U12345TN2020PTC000000</span>
-                  </div>
-                  <div className="flex flex-col gap-1 md:col-span-3 p-space-sm rounded-lg bg-surface-container-low">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Udyam MSME Registry:</span>
-                        <span className="font-mono font-bold text-label-md text-on-surface">UDYAM-TN-00-0000000</span>
-                        <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold">Micro &amp; Small Enterprise</span>
-                      </div>
-                      <span className="font-label-sm text-label-sm text-secondary font-semibold flex items-center gap-1">
-                        <span className="material-symbols-outlined text-[16px]">verified</span>
-                        Eligible for Tender Fee &amp; EMD Waiver (GoI Policy)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-space-md pt-space-sm flex items-center justify-between text-on-surface-variant font-body-sm text-body-sm">
-                  <span className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px] text-on-surface-variant">lock</span>
-                    Information verified against CPCL corporate profile credentials. Not directly editable on this screen.
-                  </span>
-                  <span className="font-mono text-label-sm">KYC Token: KYC-2026-VAL-9912</span>
-                </div>
-              </div>
-            </section>
+                    ),
+                  },
+                  { label: 'Official e-mail', value: <span className="font-mono text-[13px]">procurement@abcengineering.example</span> },
+                  { label: 'Corporate PAN', value: <span className="font-mono">ABCDE1234F</span> },
+                  { label: 'GSTIN', value: <span className="font-mono">33ABCDE1234F1Z5 <span className="font-sans text-on-surface-variant">· TN (33)</span></span> },
+                  { label: 'CIN', value: <span className="font-mono">U12345TN2020PTC000000</span> },
+                  { label: 'Udyam MSME', value: <span className="font-mono">UDYAM-TN-00-0000000</span> },
+                ]}
+              />
+              <Callout tone="success" icon="verified" title="Eligible for tender fee & EMD waiver (GoI policy)" className="mt-6 !p-3.5">
+                Micro & Small Enterprise registration validated. <span className="font-mono text-[12px]">KYC-2026-VAL-9912</span>
+              </Callout>
+            </Card>
 
-            {/* SECTION 2: UPLOADED DOCUMENTS SUMMARY */}
-            <section className="bg-surface-container-lowest rounded-lg shadow-sm overflow-hidden">
-              <div className="p-space-md bg-surface-container-low flex flex-wrap items-center justify-between gap-space-sm">
-                <div className="flex items-center gap-space-sm">
-                  <div className="w-8 h-8 rounded bg-surface-container flex items-center justify-center text-on-surface">
-                    <span className="material-symbols-outlined text-[20px]">folder_managed</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-label-lg text-label-lg text-on-surface font-semibold">2. Uploaded Documents</h2>
-                    <span className="px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-bold">7 of 7 Uploaded &amp; Staged</span>
-                  </div>
-                </div>
-                <button
-                  className="inline-flex items-center gap-1.5 px-space-md py-1.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface font-label-sm text-label-sm transition-colors shadow-sm"
-                  onClick={() => navigate(`/tenders/${encodeURIComponent(tenderRef)}/bid/2`)}
-                  type="button"
-                >
-                  <span className="material-symbols-outlined text-[16px]">visibility</span>
-                  Review Documents
-                </button>
+            {/* 2. Documents */}
+            <Card padding="none" className="overflow-hidden">
+              <div className="px-6 pt-6 sm:px-7">
+                <CardHeader
+                  icon="folder_managed"
+                  title="2 · Uploaded documents"
+                  description="All files are hashed and staged in the vault"
+                  actions={
+                    <>
+                      <StatusBadge status="uploaded">7 of 7 staged</StatusBadge>
+                      <Button variant="secondary" size="sm" leftIcon="visibility" onClick={() => navigate(`/tenders/${encodeURIComponent(tenderRef)}/bid/2`)}>
+                        Review
+                      </Button>
+                    </>
+                  }
+                />
               </div>
-              <div className="p-space-md">
-                <div className="overflow-x-auto rounded-lg bg-surface-container-lowest">
-                  <table className="w-full text-left font-body-md text-body-md border-collapse">
-                    <thead>
-                      <tr className="bg-primary-container text-on-primary font-label-sm text-label-sm">
-                        <th className="py-2.5 px-4 font-semibold w-12 text-center">#</th>
-                        <th className="py-2.5 px-4 font-semibold">Document Title / Requirement</th>
-                        <th className="py-2.5 px-4 font-semibold">Attached File</th>
-                        <th className="py-2.5 px-4 font-semibold text-right">Size</th>
-                        <th className="py-2.5 px-4 font-semibold text-center">Classification</th>
-                        <th className="py-2.5 px-4 font-semibold text-right">Integrity Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y-0">
-                      {DOCUMENTS_SUMMARY.map((doc, idx) => (
-                        <tr key={doc.n} className={'hover:bg-surface-container-low transition-colors ' + (idx % 2 === 1 ? 'bg-surface-container-low/40' : 'bg-surface-container-lowest')}>
-                          <td className="py-3 px-4 font-mono font-medium text-center text-on-surface-variant">{doc.n}</td>
-                          <td className="py-3 px-4">
-                            <div className="font-label-md text-label-md text-on-surface">{doc.name}</div>
-                            <div className="font-body-sm text-body-sm text-on-surface-variant">{doc.desc}</div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="inline-flex items-center gap-1.5 font-mono text-label-sm text-secondary font-semibold hover:underline cursor-pointer">
-                              <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-                              {doc.file}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 font-mono text-body-sm text-right text-on-surface-variant">{doc.size}</td>
-                          <td className="py-3 px-4 text-center">
-                            <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm text-label-sm uppercase font-semibold">{doc.type}</span>
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <span className="inline-flex items-center gap-1 font-label-sm text-label-sm text-secondary font-bold">
-                              <span className="material-symbols-outlined text-[16px]">verified</span>
-                              {doc.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="mt-space-md p-space-sm rounded-lg bg-surface-container-low text-on-surface-variant font-body-sm text-body-sm flex items-start gap-2">
-                  <span className="material-symbols-outlined text-[18px] text-on-surface shrink-0 mt-0.5">policy</span>
-                  <div>
-                    <strong className="font-medium text-on-surface">Document Processing &amp; Verification Protocol:</strong> Uploaded documents will
-                    be decrypted, processed, and verified after official tender opening. Upload confirmation verifies cryptographic integrity and
-                    reception into CPCL&apos;s staging vault, but does not by itself constitute statutory compliance or final technical acceptance.
-                  </div>
-                </div>
+              <Table minWidth={820}>
+                <THead>
+                  <tr>
+                    <Th className="w-14 pl-6">#</Th>
+                    <Th>Document</Th>
+                    <Th>File</Th>
+                    <Th align="right">Size</Th>
+                    <Th>Class</Th>
+                    <Th align="right" className="pr-6">
+                      Integrity
+                    </Th>
+                  </tr>
+                </THead>
+                <TBody>
+                  {DOCUMENTS_SUMMARY.map((doc) => (
+                    <Tr key={doc.n}>
+                      <Td className="pl-6 font-mono text-[12.5px] text-on-surface-variant">{doc.n}</Td>
+                      <Td>
+                        <CellStack primary={doc.name} secondary={doc.desc} />
+                      </Td>
+                      <Td>
+                        <span className="inline-flex items-center gap-1.5 font-mono text-[12.5px] text-secondary">
+                          <Icon name="picture_as_pdf" size="sm" />
+                          {doc.file}
+                        </span>
+                      </Td>
+                      <Td align="right" className="text-[13px] text-on-surface-variant num">
+                        {doc.size}
+                      </Td>
+                      <Td>
+                        <StatusBadge status={doc.type} />
+                      </Td>
+                      <Td align="right" className="pr-6">
+                        <StatusBadge status="sealed">{doc.status}</StatusBadge>
+                      </Td>
+                    </Tr>
+                  ))}
+                </TBody>
+              </Table>
+              <div className="border-t border-outline-variant bg-surface-container-low/60 px-6 py-4 text-body-sm text-on-surface-variant">
+                <strong className="font-semibold text-on-surface">Verification protocol:</strong> documents are decrypted and verified after official tender opening. Upload confirmation proves cryptographic integrity, not statutory compliance or technical acceptance.
               </div>
-            </section>
+            </Card>
 
-            {/* SECTION 3: STATUTORY BID DECLARATIONS */}
-            <section className="bg-surface-container-lowest rounded-lg shadow-sm p-space-lg">
-              <div className="flex items-center justify-between mb-space-sm">
-                <div className="flex items-center gap-space-sm">
-                  <div className="w-8 h-8 rounded bg-surface-container flex items-center justify-center text-on-surface">
-                    <span className="material-symbols-outlined text-[20px]">assignment_turned_in</span>
-                  </div>
-                  <div>
-                    <h2 className="font-label-lg text-label-lg text-on-surface font-semibold">3. Statutory Declarations</h2>
-                    <p className="font-body-sm text-body-sm text-on-surface-variant">Mandatory legal and integrity affirmations required by Central Vigilance Commission (CVC)</p>
-                  </div>
-                </div>
-                <span className="px-2.5 py-1 rounded bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-semibold">3 of 3 Required</span>
-              </div>
-              <div className="bg-surface-container-low p-space-sm rounded-lg mb-space-md text-on-surface-variant font-body-sm text-body-sm">
-                All declarations must be explicitly affirmed by the authorized signatory prior to bid submission. False declarations may invite
-                penal action including debarment under Public Procurement rules.
-              </div>
-              <div className="flex flex-col gap-space-sm">
+            {/* 3. Declarations */}
+            <Card padding="lg">
+              <CardHeader
+                icon="assignment_turned_in"
+                title="3 · Statutory declarations"
+                description="Mandatory legal and integrity affirmations required by CVC"
+                actions={<StatusBadge tone={allDeclared ? 'success' : 'danger'}>{declaredCount} of 3 affirmed</StatusBadge>}
+              />
+              <div className="flex flex-col gap-3">
                 {DECLARATIONS.map((decl) => (
-                  <label key={decl.id} className="p-space-sm rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors flex items-start gap-space-sm cursor-pointer select-none">
-                    <input
-                      checked={declarations[decl.id as keyof typeof declarations]}
-                      className="mt-1 w-4 h-4 rounded text-secondary bg-surface-container-lowest border-0 focus:ring-2 focus:ring-secondary shrink-0 cursor-pointer"
-                      onChange={(e) => setDeclarations((prev) => ({ ...prev, [decl.id]: e.target.checked }))}
-                      type="checkbox"
-                    />
-                    <div className="flex flex-col">
-                      <span className="font-body-md text-body-md text-on-surface font-medium leading-snug">{decl.text}</span>
-                      <span className="font-body-sm text-body-sm text-on-surface-variant">{decl.sub}</span>
-                    </div>
-                  </label>
+                  <Checkbox key={decl.id} checked={declarations[decl.id]} onChange={(e) => setDeclarations((prev) => ({ ...prev, [decl.id]: e.target.checked }))} label={decl.text} description={decl.sub} />
                 ))}
               </div>
-              <div className="mt-space-md p-space-sm rounded-lg bg-surface-container flex flex-wrap items-center justify-between gap-space-sm">
-                <div className="flex items-center gap-space-sm">
-                  <span className="material-symbols-outlined text-[20px] text-secondary">token</span>
-                  <div className="flex flex-col">
-                    <span className="font-label-sm text-label-sm text-on-surface font-semibold">Authorized Signatory: Arun Kumar (Procurement Manager)</span>
-                    <span className="font-mono text-label-sm text-on-surface-variant">Digital Signature Certificate: Class-3 DSC Token (CPCL-DSC-V3-IND-8849) • Ready &amp; Bound</span>
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-card border border-outline-variant bg-surface-container-low p-4">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-control bg-surface-container-lowest text-secondary shadow-xs">
+                    <Icon name="token" size="lg" />
+                  </span>
+                  <div>
+                    <div className="text-[14px] font-semibold text-on-surface">Arun Kumar · Procurement Manager</div>
+                    <div className="font-mono text-[12px] text-on-surface-variant">Class-3 DSC token CPCL-DSC-V3-IND-8849 · ready & bound</div>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded bg-surface-container-lowest text-secondary font-label-sm text-label-sm font-bold flex items-center gap-1 shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-secondary"></span>
-                  DSC Verified
-                </span>
+                <StatusBadge status="verified">DSC verified</StatusBadge>
               </div>
-            </section>
+              <p className="mt-4 text-body-sm text-on-surface-variant">False declarations may invite penal action including debarment under public procurement rules.</p>
+            </Card>
 
-            {/* SECTION 4: "BEFORE YOU SUBMIT" SUMMARY PANEL */}
-            <section className="bg-surface-container-lowest rounded-lg shadow-sm p-space-lg">
-              <div className="flex items-center gap-space-sm mb-space-md">
-                <div className="w-8 h-8 rounded bg-surface-container flex items-center justify-center text-on-surface">
-                  <span className="material-symbols-outlined text-[20px]">fact_check</span>
-                </div>
-                <div>
-                  <h2 className="font-label-lg text-label-lg text-on-surface font-semibold">4. Before You Submit</h2>
-                  <p className="font-body-sm text-body-sm text-on-surface-variant">Final readiness checkpoint for digital submission sealing</p>
-                </div>
+            {/* 4. Readiness */}
+            <Card padding="lg">
+              <CardHeader icon="fact_check" title="4 · Before you submit" description="Final readiness checkpoint" />
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                {[
+                  { label: 'Tender', value: <span className="font-mono text-[13px]">{tenderRef}</span>, ok: true },
+                  { label: 'Deadline', value: '04 Oct, 17:00', ok: true },
+                  { label: 'Bid state', value: 'Draft · ready', ok: true },
+                  { label: 'Mandatory files', value: '7 of 7', ok: true },
+                  { label: 'Declarations', value: `${declaredCount} of 3`, ok: allDeclared },
+                ].map((t) => (
+                  <div key={t.label} className={cn('rounded-card border p-4', t.ok ? 'border-outline-variant bg-surface-container-low' : 'border-danger-border bg-danger-container')}>
+                    <div className="flex items-center justify-between gap-2 text-[12px] font-medium text-on-surface-variant">
+                      {t.label}
+                      <Icon name={t.ok ? 'check_circle' : 'error'} size="sm" fill className={t.ok ? 'text-success' : 'text-danger'} />
+                    </div>
+                    <div className="mt-1 truncate text-[14px] font-semibold text-on-surface">{t.value}</div>
+                  </div>
+                ))}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-space-sm mb-space-md">
-                <div className="p-space-sm rounded-lg bg-surface-container-low flex flex-col">
-                  <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Tender Ref</span>
-                  <span className="font-mono font-bold text-label-md text-on-surface mt-1 truncate">{tenderRef}</span>
-                </div>
-                <div className="p-space-sm rounded-lg bg-surface-container-low flex flex-col">
-                  <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Submission Deadline</span>
-                  <span className="font-label-md text-label-md text-on-surface mt-1">04 Oct 2026, 17:00</span>
-                </div>
-                <div className="p-space-sm rounded-lg bg-surface-container-low flex flex-col">
-                  <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Bid State</span>
-                  <span className="font-label-md text-label-md text-secondary font-bold mt-1">DRAFT (Ready to Lock)</span>
-                </div>
-                <div className="p-space-sm rounded-lg bg-surface-container-low flex flex-col">
-                  <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Mandatory Files</span>
-                  <span className="font-label-md text-label-md text-secondary font-bold mt-1">7 of 7 Attached</span>
-                </div>
-                <div className="p-space-sm rounded-lg bg-surface-container-low flex flex-col">
-                  <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Declarations</span>
-                  <span className={'font-label-md text-label-md font-bold mt-1 ' + (allDeclared ? 'text-secondary' : 'text-error')}>{declaredCount} of 3 Confirmed</span>
-                </div>
-              </div>
-              <div className="p-space-sm rounded-lg bg-primary-container text-on-primary flex items-center justify-between gap-space-sm">
-                <div className="flex items-center gap-space-sm">
-                  <span className="material-symbols-outlined text-[20px] text-secondary-fixed">gavel</span>
-                  <span className="font-body-md text-body-md text-on-primary">
-                    Your bid will be recorded as submitted only after selecting <strong>&quot;Submit Bid&quot;</strong> and confirming the irreversible
-                    submission prompt.
-                  </span>
-                </div>
-                <span className="font-mono text-label-sm text-primary-fixed-dim whitespace-nowrap hidden lg:inline">SHA-256 Vault Ready</span>
-              </div>
-            </section>
-
-            {/* STICKY BOTTOM ACTION BAR */}
-            <div className="sticky bottom-0 z-30 bg-surface-container-lowest/95 backdrop-blur-md rounded-lg shadow-lg p-space-md flex flex-wrap items-center justify-between gap-space-md">
-              <button
-                className="inline-flex items-center gap-space-xs px-space-md py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md font-semibold transition-colors"
-                onClick={() => navigate(`/tenders/${encodeURIComponent(tenderRef)}/bid/2`)}
-                type="button"
-              >
-                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                Back to Documents
-              </button>
-              <div className="flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
-                <span className="material-symbols-outlined text-[18px] text-on-surface">alarm</span>
+              <div className="mt-5 flex items-center gap-3 rounded-card bg-navy px-4 py-3.5 text-body-md text-white/85">
+                <Icon name="gavel" size="lg" className="text-saffron" />
                 <span>
-                  Submission closes: <strong className="text-on-surface font-semibold">{BID_TENDER.deadline}</strong>
+                  Your bid is recorded as submitted only after selecting <strong className="text-white">Submit bid</strong> and confirming the irreversible prompt.
                 </span>
-                <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface font-medium">(2 days remaining)</span>
               </div>
-              <div className="flex items-center gap-space-sm">
-                <button className="px-space-md py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface font-label-md text-label-md font-medium transition-colors" type="button">
-                  Save &amp; Exit
-                </button>
-                <button
-                  className={'inline-flex items-center gap-2 px-space-lg py-2 rounded-lg bg-secondary hover:bg-secondary-container text-on-secondary font-label-lg text-label-lg font-bold shadow-md transition-all' + (!allDeclared ? ' opacity-50 cursor-not-allowed' : '')}
-                  disabled={!allDeclared}
-                  onClick={openConfirmationModal}
-                  type="button"
-                >
-                  <span className="material-symbols-outlined text-[18px]">lock</span>
-                  Submit Bid
-                </button>
-              </div>
-            </div>
-          </div>
+            </Card>
+          </>
         )}
 
-        {/* STATE: SUBMISSION ERROR */}
         {screen === 'error' && (
-          <div className="flex flex-col gap-space-md">
-            <div className="bg-surface-container-lowest rounded-lg shadow-sm p-space-xl flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-full bg-error-container text-error flex items-center justify-center mb-space-md">
-                <span className="material-symbols-outlined text-[36px]">error</span>
-              </div>
-              <h2 className="font-headline-lg text-headline-lg text-on-surface mb-space-xs">Submission Failed to Complete</h2>
-              <p className="font-body-lg text-body-lg text-on-surface-variant max-w-xl mb-space-md">
-                The cryptographic handshake with the CPCL Digital Vault was interrupted. Your bid draft remains safe and unmodified in your workspace.
-              </p>
-              <div className="w-full max-w-2xl bg-surface-container-low rounded-lg p-space-md text-left mb-space-lg">
-                <div className="flex items-center justify-between mb-space-xs">
-                  <span className="font-label-sm text-label-sm text-error font-semibold uppercase tracking-wider">Error Diagnostic</span>
-                  <span className="font-mono text-label-sm text-on-surface-variant">Code: ERR-DSC-TIMEOUT-504</span>
+          <Card>
+            <EmptyState
+              tone="danger"
+              icon="error"
+              title="Submission couldn't be completed"
+              description="The cryptographic handshake with the CPCL digital vault was interrupted. Your draft is safe and unchanged."
+              actions={
+                <>
+                  <Button variant="secondary" onClick={() => setScreen('default')}>
+                    Return to review
+                  </Button>
+                  <Button leftIcon="refresh" onClick={() => setScreen('submitting')}>
+                    Retry submission
+                  </Button>
+                </>
+              }
+            >
+              <Callout tone="danger" title={<span className="flex flex-wrap items-center justify-between gap-2">DSC token response timeout <Tag mono>ERR-DSC-TIMEOUT-504</Tag></span>} className="text-left">
+                The Digital Signature Certificate token didn't respond within 30 seconds. Make sure the USB crypto token is seated properly and the DSC utility driver is running.
+              </Callout>
+            </EmptyState>
+          </Card>
+        )}
+
+        {screen === 'closed' && (
+          <Card>
+            <EmptyState
+              icon="timer_off"
+              title="Submission window closed"
+              description={
+                <>
+                  The deadline for <span className="font-mono text-on-surface">{tenderRef}</span> passed on 04 Oct 2026 at 17:00:00 IST. Under CVC regulations no further bids or revisions can be accepted.
+                </>
+              }
+              actions={
+                <Button variant="secondary" leftIcon="space_dashboard" onClick={() => navigate('/dashboard')}>
+                  Back to dashboard
+                </Button>
+              }
+            >
+              <Card tone="subtle" padding="sm" className="mx-auto max-w-md text-left">
+                <DescriptionList
+                  items={[
+                    { label: 'Tender reference', value: <span className="font-mono">{tenderRef}</span> },
+                    { label: 'Server lock', value: <span className="font-mono">04-OCT-2026 17:00:01 IST</span> },
+                    { label: 'Draft state', value: <StatusBadge tone="danger">Expired · not submitted</StatusBadge> },
+                  ]}
+                />
+              </Card>
+            </EmptyState>
+          </Card>
+        )}
+
+        {screen === 'success' && (
+          <Card padding="none" className="overflow-hidden">
+            <div className="h-1 bg-success" aria-hidden="true" />
+            <EmptyState
+              tone="success"
+              icon="verified"
+              title="Bid submitted successfully"
+              description={`Your bid for ${BID_TENDER.title} has been sealed and recorded in the CPCL e-Procurement digital vault.`}
+              actions={
+                <>
+                  <Button variant="brand" leftIcon="download" onClick={() => window.alert('Initiating download of Official Bid Receipt SR-2026-00418.pdf')}>
+                    Download receipt (PDF)
+                  </Button>
+                  <Button variant="secondary" leftIcon="visibility" onClick={() => navigate('/my-bids/BID-2026-00418')}>
+                    View submission details
+                  </Button>
+                  <Button variant="ghost" onClick={() => setScreen('default')}>
+                    Back to workspace
+                  </Button>
+                </>
+              }
+            >
+              <div className="rounded-card border border-outline-variant bg-surface-container-low p-6 text-left">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Official e-procurement receipt</span>
+                  <Tag mono>SR-2026-00418</Tag>
                 </div>
-                <p className="font-body-md text-body-md text-on-surface">
-                  <strong>DSC Token Response Timeout:</strong> Digital Signature Certificate Token response exceeded the 30-second threshold. Ensure
-                  the USB Crypto Token is seated properly and your DSC utility driver is active.
+                <DescriptionList
+                  columns={2}
+                  items={[
+                    { label: 'Submission reference', value: <span className="font-mono text-secondary">BID-2026-00418</span> },
+                    { label: 'Timestamp', value: <span className="num">04 Oct 2026, 16:42:18 IST</span> },
+                    { label: 'Tender reference', value: <span className="font-mono">{tenderRef}</span> },
+                    { label: 'Documents', value: '7 · SHA-256 digests verified' },
+                    { label: 'Bidder', value: 'ABC Engineering Pvt Ltd (BIDDER-00482)' },
+                    { label: 'Status', value: <StatusBadge status="sealed">Submitted · sealed</StatusBadge> },
+                  ]}
+                />
+                <div className="mt-5 rounded-control bg-surface-container-lowest p-3 font-mono text-[11.5px] break-all text-on-surface-variant">
+                  0x8F3A29B8C401D9E74A25F883B10467AC231EFD084C9A23E099A7BF2231A88FE3
+                </div>
+                <p className="mt-4 flex items-start gap-2 text-body-sm text-on-surface-variant">
+                  <Icon name="lock_clock" size="sm" className="mt-0.5 text-secondary" />
+                  Documents remain encrypted until the public technical opening on <strong className="text-on-surface">05 Oct 2026, 11:00 IST</strong>.
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-space-md">
-                <button className="px-space-lg py-2.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md font-semibold transition-colors" onClick={() => setScreen('default')} type="button">
-                  Return to Review Workspace
-                </button>
-                <button className="inline-flex items-center gap-2 px-space-lg py-2.5 rounded-lg bg-secondary hover:bg-secondary-container text-on-secondary font-label-md text-label-md font-bold shadow-md transition-all" onClick={executeSubmissionFlow} type="button">
-                  <span className="material-symbols-outlined text-[18px]">refresh</span>
-                  Retry Submission
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STATE: TENDER CLOSED */}
-        {screen === 'closed' && (
-          <div className="flex flex-col gap-space-md">
-            <div className="bg-surface-container-lowest rounded-lg shadow-sm p-space-xl flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center mb-space-md">
-                <span className="material-symbols-outlined text-[36px]">timer_off</span>
-              </div>
-              <h2 className="font-headline-lg text-headline-lg text-on-surface mb-space-xs">Tender Submission Window Closed</h2>
-              <p className="font-body-lg text-body-lg text-on-surface-variant max-w-xl mb-space-md">
-                The official deadline for tender reference <strong className="text-on-surface">{tenderRef}</strong> passed on{' '}
-                <strong>04 Oct 2026 at 17:00:00 IST</strong>. In accordance with Central Vigilance Commission regulations, no further bids or
-                revisions can be accepted.
-              </p>
-              <div className="p-space-md bg-surface-container-low rounded-lg w-full max-w-md text-left font-body-sm text-body-sm text-on-surface-variant mb-space-lg">
-                <div className="flex justify-between py-1">
-                  <span>Tender Reference:</span>
-                  <span className="font-mono font-semibold text-on-surface">{tenderRef}</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span>Server Lock Timestamp:</span>
-                  <span className="font-mono text-on-surface">04-OCT-2026 17:00:01 IST</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span>Draft State:</span>
-                  <span className="font-semibold text-error">EXPIRED (Not Submitted)</span>
-                </div>
-              </div>
-              <button className="px-space-lg py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md font-semibold transition-colors" onClick={() => navigate('/dashboard')} type="button">
-                Back to Dashboard
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* STATE: SUCCESS RECEIPT */}
-        {screen === 'success' && (
-          <div className="flex flex-col gap-space-md">
-            <div className="bg-surface-container-lowest rounded-lg shadow-sm p-space-xl flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center mb-space-sm shadow-sm">
-                <span className="material-symbols-outlined text-[36px]">verified</span>
-              </div>
-              <div className="inline-flex items-center gap-2 px-space-sm py-1 rounded-full bg-surface-container text-on-surface font-mono font-semibold text-label-sm mb-2">
-                <span>OFFICIAL E-PROCUREMENT RECEIPT</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                <span>SR-2026-00418</span>
-              </div>
-              <h2 className="font-headline-lg text-headline-lg text-on-surface font-bold">Bid Submitted Successfully</h2>
-              <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mt-1 mb-space-lg">
-                Your bid for {BID_TENDER.title} has been sealed and successfully recorded in the CPCL e-Procurement Digital Vault.
-              </p>
-              <div className="w-full max-w-3xl bg-surface-container-low rounded-lg p-space-lg text-left shadow-sm mb-space-lg">
-                <div className="flex flex-wrap items-center justify-between pb-space-sm mb-space-sm">
-                  <div className="flex items-center gap-space-xs">
-                    <span className="w-3 h-3 rounded-full bg-secondary"></span>
-                    <span className="font-label-lg text-label-lg text-on-surface font-bold uppercase tracking-wider">Central Public Procurement Ledger</span>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded bg-surface-container-highest text-on-surface font-label-sm text-label-sm font-semibold">STATUS: SUBMITTED (CRYPTOGRAPHICALLY SEALED)</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-space-lg gap-y-space-sm font-body-md text-body-md pt-space-xs">
-                  <div>
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block">Bid Submission Reference</span>
-                    <span className="font-mono font-bold text-label-lg text-secondary">BID-2026-00418</span>
-                  </div>
-                  <div>
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block">Submission Timestamp</span>
-                    <span className="font-mono font-semibold text-on-surface">04 Oct 2026, 16:42:18 IST</span>
-                  </div>
-                  <div>
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block">Tender Reference</span>
-                    <span className="font-mono font-semibold text-on-surface">{tenderRef}</span>
-                  </div>
-                  <div>
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block">Total Documents Attached</span>
-                    <span className="font-semibold text-on-surface">7 Documents (SHA-256 Digest Verified)</span>
-                  </div>
-                  <div className="md:col-span-2">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block">Tender Title</span>
-                    <span className="font-semibold text-on-surface">{BID_TENDER.title}</span>
-                  </div>
-                  <div className="md:col-span-2">
-                    <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider block">Bidder Entity</span>
-                    <span className="font-semibold text-on-surface">ABC Engineering Pvt Ltd (Vendor ID: BIDDER-00482)</span>
-                  </div>
-                  <div className="md:col-span-2 p-space-sm rounded bg-surface-container-lowest font-mono text-body-sm text-on-surface-variant">
-                    <div className="text-label-sm uppercase font-bold text-on-surface mb-1">Cryptographic Ledger Signature</div>
-                    <div className="break-all">0x8F3A29B8C401D9E74A25F883B10467AC231EFD084C9A23E099A7BF2231A88FE3</div>
-                  </div>
-                </div>
-                <div className="mt-space-md pt-space-sm flex items-start gap-2 text-on-surface-variant font-body-sm text-body-sm">
-                  <span className="material-symbols-outlined text-[18px] text-secondary shrink-0 mt-0.5">lock_clock</span>
-                  <span>
-                    <strong>Security Notice:</strong> Submission actions are recorded with a tamper-evident timestamp and digital token signature.
-                    The bid documents will remain encrypted and sealed until the public technical bid opening scheduled on{' '}
-                    <strong>05 Oct 2026, 11:00 IST</strong>.
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-center gap-space-md">
-                <button className="inline-flex items-center gap-2 px-space-lg py-2.5 rounded-lg bg-primary-container hover:bg-primary-container/90 text-on-primary font-label-md text-label-md font-bold shadow-md transition-all" onClick={() => window.alert('Initiating download of Official Bid Receipt SR-2026-00418.pdf')} type="button">
-                  <span className="material-symbols-outlined text-[20px]">download</span>
-                  Download Submission Receipt (PDF)
-                </button>
-                <button className="inline-flex items-center gap-2 px-space-md py-2.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md text-label-md font-semibold transition-colors" onClick={() => navigate('/my-bids/BID-2026-00418')} type="button">
-                  <span className="material-symbols-outlined text-[18px]">visibility</span>
-                  View Submission Details
-                </button>
-                <button className="inline-flex items-center gap-2 px-space-md py-2.5 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface font-label-md text-label-md transition-colors" onClick={() => setScreen('default')} type="button">
-                  Back to Workspace
-                </button>
-              </div>
-            </div>
-          </div>
+            </EmptyState>
+          </Card>
         )}
       </div>
 
-      {/* MODAL A: CONFIRMATION MODAL */}
-      {screen === 'modal' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-space-md bg-primary-container/60 backdrop-blur-sm transition-opacity">
-          <div className="bg-surface-container-lowest rounded-xl shadow-xl max-w-xl w-full overflow-hidden transition-all scale-100">
-            <div className="p-space-lg bg-surface-container-low flex items-start gap-space-md">
-              <div className="w-10 h-10 rounded-full bg-secondary-container/20 text-secondary flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[24px]">lock</span>
-              </div>
-              <div className="flex flex-col">
-                <h3 className="font-headline-sm text-headline-sm text-on-surface font-bold">Confirm Final Bid Submission</h3>
-                <span className="font-mono text-label-sm text-on-surface-variant">Tender Ref: {tenderRef}</span>
-              </div>
-            </div>
-            <div className="p-space-lg flex flex-col gap-space-md font-body-md text-body-md text-on-surface">
-              <p>
-                You are about to submit your bid for <strong className="text-on-surface">{BID_TENDER.title}</strong>. Please confirm that you have
-                thoroughly reviewed all entered information and uploaded documents.
-              </p>
-              <div className="p-space-md rounded-lg bg-surface-container text-on-surface flex items-start gap-space-sm">
-                <span className="material-symbols-outlined text-[20px] text-error shrink-0 mt-0.5">warning</span>
-                <div className="font-body-sm text-body-sm leading-relaxed">
-                  <strong className="font-semibold text-error block mb-0.5">Irreversible Action:</strong>
-                  Once confirmed, this bid draft will be cryptographically locked and recorded as officially submitted. No further modifications
-                  can be made within this workflow unless authorized under formal tender corrigendum.
-                </div>
-              </div>
-              <div className="bg-surface-container-low p-space-sm rounded-lg font-mono text-body-sm text-on-surface-variant flex flex-col gap-1">
-                <div className="flex justify-between">
-                  <span>Bid Draft:</span>
-                  <span className="font-bold text-on-surface">{BID_TENDER.draftId}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Signatory:</span>
-                  <span className="text-on-surface">Arun Kumar (Class-3 DSC Active)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Staged Files:</span>
-                  <span className="text-on-surface">7 Files (7.6 MB Total)</span>
-                </div>
-              </div>
-            </div>
-            <div className="p-space-md bg-surface-container-low flex items-center justify-end gap-space-sm">
-              <button className="px-space-md py-2 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface font-label-md text-label-md font-semibold transition-colors" onClick={() => setScreen('default')} type="button">
-                Cancel
-              </button>
-              <button className="inline-flex items-center gap-2 px-space-lg py-2 rounded-lg bg-secondary hover:bg-secondary-container text-on-secondary font-label-md text-label-md font-bold shadow-md transition-all" onClick={executeSubmissionFlow} type="button">
-                <span className="material-symbols-outlined text-[18px]">lock</span>
-                Confirm &amp; Submit Bid
-              </button>
-            </div>
-          </div>
-        </div>
+      {showWorkspace && (
+        <BidActionBar
+          left={
+            <Button variant="ghost" leftIcon="arrow_back" onClick={() => navigate(`/tenders/${encodeURIComponent(tenderRef)}/bid/2`)}>
+              Back to documents
+            </Button>
+          }
+          center={
+            <span className="inline-flex items-center gap-2 text-[13px] text-on-surface-variant">
+              <Icon name="alarm" size="sm" />
+              Closes <strong className="font-semibold text-on-surface num">{BID_TENDER.deadline}</strong>
+            </span>
+          }
+          right={
+            <>
+              <Button variant="secondary">Save & exit</Button>
+              <Button size="lg" leftIcon="lock" disabled={!allDeclared} onClick={openConfirmationModal}>
+                Submit bid
+              </Button>
+            </>
+          }
+        />
       )}
 
-      {/* VIEW B: SUBMISSION PROCESSING OVERLAY */}
+      <Modal
+        open={screen === 'modal'}
+        onClose={() => setScreen('default')}
+        icon="lock"
+        title="Confirm final bid submission"
+        description={<span className="font-mono">Tender {tenderRef}</span>}
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setScreen('default')}>
+              Cancel
+            </Button>
+            <Button leftIcon="lock" onClick={() => setScreen('submitting')}>
+              Confirm & submit
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-5">
+          <p className="text-body-md text-on-surface">
+            You're about to submit your bid for <strong>{BID_TENDER.title}</strong>. Confirm you have reviewed all information and documents.
+          </p>
+          <Callout tone="danger" icon="warning" title="This action is irreversible">
+            The draft will be cryptographically locked and recorded as submitted. No further changes are possible unless a formal corrigendum authorizes them.
+          </Callout>
+          <Card tone="subtle" padding="sm">
+            <DescriptionList
+              items={[
+                { label: 'Bid draft', value: <span className="font-mono">{BID_TENDER.draftId}</span> },
+                { label: 'Signatory', value: 'Arun Kumar · Class-3 DSC active' },
+                { label: 'Staged files', value: '7 files · 7.6 MB' },
+              ]}
+            />
+          </Card>
+        </div>
+      </Modal>
+
       {screen === 'submitting' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-space-md bg-primary-container/70 backdrop-blur-md">
-          <div className="bg-surface-container-lowest rounded-xl shadow-xl max-w-md w-full p-space-xl flex flex-col items-center text-center">
-            <div className="relative w-16 h-16 mb-space-md">
-              <div className="w-16 h-16 rounded-full border-4 border-surface-container-high border-t-secondary animate-spin"></div>
-              <span className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-secondary text-[24px]">vpn_key</span>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-navy-900/60 p-6 backdrop-blur-sm animate-fade-in" role="alertdialog" aria-modal="true" aria-label="Submitting bid">
+          <div className="w-full max-w-md rounded-panel bg-surface-container-lowest p-8 text-center shadow-overlay animate-scale-in">
+            <div className="relative mx-auto mb-6 h-16 w-16">
+              <div className="h-16 w-16 animate-spin rounded-full border-4 border-surface-container border-t-secondary" />
+              <Icon name="vpn_key" size="xl" className="absolute inset-0 m-auto h-6 w-6 text-secondary" />
             </div>
-            <h3 className="font-headline-sm text-headline-sm text-on-surface font-bold mb-1">Submitting your bid...</h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mb-space-lg">
-              Please do not refresh or navigate away while the digital vault cryptographically seals your application.
-            </p>
-            <div className="w-full bg-surface-container-low rounded-lg p-space-md flex flex-col gap-2.5 text-left font-body-sm text-body-sm">
-              <div className="flex items-center gap-2 text-secondary font-medium">
-                <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                <span>Validating bidder basic details</span>
-              </div>
-              <div className="flex items-center gap-2 text-secondary font-medium">
-                <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                <span>Validating 7 uploaded document digests</span>
-              </div>
-              {loaderStage === 0 ? (
-                <div className="flex items-center gap-2 text-on-surface font-semibold">
-                  <span className="w-4 h-4 rounded-full border-2 border-secondary border-t-transparent animate-spin inline-block"></span>
-                  <span>Recording submission in digital procurement ledger...</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-secondary font-medium">
-                  <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                  <span>Recorded in digital procurement ledger</span>
-                </div>
-              )}
-              {loaderStage === 0 ? (
-                <div className="flex items-center gap-2 text-on-surface-variant">
-                  <span className="w-4 h-4 rounded-full bg-surface-variant inline-block"></span>
-                  <span>Generating statutory submission receipt...</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-on-surface font-semibold">
-                  <span className="w-4 h-4 rounded-full border-2 border-secondary border-t-transparent animate-spin inline-block"></span>
-                  <span>Generating statutory submission receipt...</span>
-                </div>
-              )}
-            </div>
+            <h3 className="text-headline-md text-on-surface">Submitting your bid…</h3>
+            <p className="mt-1.5 text-body-sm text-on-surface-variant">Don't refresh or leave while the vault seals your application.</p>
+            <ol className="mt-6 flex flex-col gap-3 rounded-card bg-surface-container-low p-5 text-left">
+              {LOADER_STEPS.map((label, i) => {
+                const done = i < doneSteps;
+                const active = i === doneSteps;
+                return (
+                  <li key={label} className={cn('flex items-center gap-3 text-[14px]', done ? 'text-success-on-container' : active ? 'font-semibold text-on-surface' : 'text-outline')}>
+                    {done ? (
+                      <Icon name="check_circle" size="md" fill className="text-success" />
+                    ) : active ? (
+                      <span className="inline-block h-[18px] w-[18px] animate-spin rounded-full border-2 border-secondary border-t-transparent" />
+                    ) : (
+                      <span className="inline-block h-[18px] w-[18px] rounded-full border-2 border-outline-variant" />
+                    )}
+                    {label}
+                  </li>
+                );
+              })}
+            </ol>
           </div>
         </div>
       )}

@@ -1,14 +1,10 @@
-// Shared pieces used by all three Bid Submission Workspace steps — ported
-// from the "CPCL Bidder Portal - Bid Submission Workspace" Stitch screens
-// (Step 01: Basic Details, Step 02: Documents, Step 03: Review & Confirm).
-// Extracted here (rather than tripled across the three step pages) so the
-// tender context banner and 3-step progress stepper render identically,
-// consistent with keeping one shared visual language across the app.
-//
-// NOTE: the sidebar/header chrome for these screens comes from the shared
-// BidderPortalShell layout, not from this file or the Stitch screens' own
-// (yet another, slightly different) bespoke sidebar markup — see
-// layouts/BidderPortalShell.tsx.
+// Shared pieces for all three Bid Submission Workspace steps (ported from the
+// "CPCL Bidder Portal - Bid Submission Workspace" Stitch screens): the tender
+// context banner, the 3-step progress stepper and the sticky action bar.
+// Sidebar/header come from the shared BidderPortalShell.
+
+import type { ReactNode } from 'react';
+import { Card, Icon, StatusBadge, Stepper, Tag } from '@/components/primitives';
 
 export const BID_TENDER = {
   ref: 'CPCL/PROC/2026/041',
@@ -16,96 +12,67 @@ export const BID_TENDER = {
   authority: 'Chennai Petroleum Corporation Limited (Govt. of India Enterprise)',
   draftId: 'BID-DRAFT-2026-00418',
   deadline: '04 Oct 2026 · 17:00 IST',
-  daysRemaining: '2 Days Remaining',
+  daysRemaining: '2 days remaining',
 };
 
 export type BidStepId = 1 | 2 | 3;
 
-const STEPS: { id: BidStepId; label: string; sub: string }[] = [
-  { id: 1, label: 'Basic Details', sub: 'Bidder identity & authorized contacts' },
-  { id: 2, label: 'Documents', sub: 'Technical envelope & fee proof' },
-  { id: 3, label: 'Confirm & e-Sign', sub: 'DSC Class-3 digital seal & lock' },
+const STEPS = [
+  { label: 'Basic details', description: 'Bidder identity & authorized contact' },
+  { label: 'Documents', description: 'Technical envelope & statutory proofs' },
+  { label: 'Review & e-sign', description: 'Declarations, DSC seal & submit' },
 ];
 
 /** Tender identity strip shown at the top of every workspace step. */
-export function TenderContextBanner() {
+export function TenderContextBanner({ tenderRef = BID_TENDER.ref }: { tenderRef?: string }) {
   return (
-    <div className="w-full bg-surface-container-low rounded-xl p-space-md mb-space-lg flex flex-col md:flex-row md:items-center justify-between gap-space-md shadow-sm">
-      <div className="flex items-center gap-space-md min-w-0">
-        <div className="w-11 h-11 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-headline-sm shrink-0">
-          <span className="material-symbols-outlined text-[24px] text-secondary-fixed">shield_lock</span>
-        </div>
-        <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-space-xs flex-wrap">
-            <span className="font-label-sm text-label-sm text-secondary uppercase font-bold tracking-wider">Tender Ref</span>
-            <span className="font-label-sm text-label-sm text-on-surface-variant">•</span>
-            <span className="font-label-sm text-label-sm text-on-surface-variant font-mono">{BID_TENDER.ref}</span>
-            <span className="px-space-xs py-0.5 rounded-full bg-surface-container-highest text-on-surface font-label-sm text-label-sm font-semibold">OPEN</span>
-          </div>
-          <div className="font-headline-sm text-headline-sm text-on-surface truncate font-semibold">{BID_TENDER.title}</div>
-          <div className="font-body-sm text-body-sm text-on-surface-variant">{BID_TENDER.authority}</div>
-        </div>
-      </div>
-      <div className="flex items-center gap-space-md shrink-0 bg-surface-container-lowest p-space-sm rounded-lg shadow-sm">
-        <div className="flex items-center gap-space-xs px-space-sm py-1 bg-surface-container-low rounded-md">
-          <span className="material-symbols-outlined text-[18px] text-on-tertiary-container">schedule</span>
-          <div className="flex flex-col">
-            <span className="font-label-sm text-label-sm text-on-surface-variant">Submission Deadline</span>
-            <span className="font-label-md text-label-md text-on-surface font-bold">{BID_TENDER.deadline}</span>
+    <Card padding="none" className="overflow-hidden">
+      <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+          <span className="relative inline-flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-card bg-navy text-white">
+            <Icon name="shield_lock" size="xl" />
+            <span className="absolute inset-x-0 bottom-0 h-[3px] bg-saffron" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Tag mono>{tenderRef}</Tag>
+              <StatusBadge status="open" />
+              <Tag mono>{BID_TENDER.draftId}</Tag>
+            </div>
+            <h2 className="mt-2 text-[18px] font-semibold leading-snug text-on-surface">{BID_TENDER.title}</h2>
+            <p className="mt-0.5 text-body-sm text-on-surface-variant">{BID_TENDER.authority}</p>
           </div>
         </div>
-        <div className="h-8 w-px bg-outline-variant/30 hidden sm:block"></div>
-        <div className="flex items-center gap-space-xs text-on-surface-variant font-label-sm text-label-sm">
-          <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
-          <span>{BID_TENDER.daysRemaining}</span>
+        <div className="flex shrink-0 items-center gap-4 rounded-card border border-warning-border bg-warning-container px-4 py-3">
+          <Icon name="alarm" size="xl" className="text-warning-on-container" />
+          <div>
+            <div className="text-[12px] font-medium text-warning-on-container/80">Submission deadline</div>
+            <div className="text-[15px] font-semibold text-warning-on-container num">{BID_TENDER.deadline}</div>
+            <div className="text-[12px] font-medium text-warning-on-container">{BID_TENDER.daysRemaining}</div>
+          </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
-/** 3-step horizontal progress stepper shared by all workspace steps. */
+/** 3-step guided-workflow stepper shared by all workspace steps. */
 export function BidStepper({ current }: { current: BidStepId }) {
   return (
-    <div className="w-full bg-surface-container-lowest rounded-xl p-space-md mb-space-lg shadow-sm">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-space-sm">
-        {STEPS.map((step) => {
-          const done = step.id < current;
-          const active = step.id === current;
-          return (
-            <div
-              key={step.id}
-              className={
-                'flex items-center gap-space-sm p-space-sm rounded-lg ' +
-                (active ? 'bg-surface-container-low' : done ? '' : 'opacity-60')
-              }
-            >
-              <div
-                className={
-                  'w-8 h-8 rounded-full flex items-center justify-center font-label-md text-label-md font-bold shrink-0 ' +
-                  (active
-                    ? 'bg-secondary text-on-secondary shadow-sm'
-                    : done
-                      ? 'bg-surface-container text-secondary'
-                      : 'bg-surface-container-highest text-on-surface-variant')
-                }
-              >
-                {done ? <span className="material-symbols-outlined text-[18px]">check</span> : String(step.id).padStart(2, '0')}
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-space-xs">
-                  <span className={'font-label-md text-label-md font-bold ' + (active ? 'text-secondary' : done ? 'text-secondary' : 'text-on-surface')}>
-                    Step {step.id}: {step.label}
-                  </span>
-                  {active && (
-                    <span className="px-space-xs py-0.5 rounded-full bg-secondary text-on-secondary font-label-sm text-label-sm font-semibold">Active</span>
-                  )}
-                </div>
-                <span className="font-body-sm text-body-sm text-on-surface-variant truncate">{step.sub}</span>
-              </div>
-            </div>
-          );
-        })}
+    <Card>
+      <Stepper steps={STEPS} current={current} />
+    </Card>
+  );
+}
+
+/** Sticky bottom action bar for the workspace (clears the sidebar on ≥lg). */
+export function BidActionBar({ left, center, right }: { left?: ReactNode; center?: ReactNode; right: ReactNode }) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-outline-variant bg-surface-container-lowest/95 backdrop-blur-md lg:left-sidebar">
+      <div className="mx-auto flex w-full max-w-page flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-10">
+        <div className="flex items-center gap-3">{left}</div>
+        {center && <div className="hidden items-center lg:flex">{center}</div>}
+        <div className="flex flex-wrap items-center justify-end gap-2.5">{right}</div>
       </div>
     </div>
   );
