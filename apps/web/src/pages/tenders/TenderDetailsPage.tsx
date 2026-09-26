@@ -247,9 +247,6 @@ export function TenderDetailsPage() {
                     <span className="text-[13px] font-semibold text-on-surface num">{cfg.progress}%</span>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" rightIcon="chevron_right">
-                  Draft history
-                </Button>
               </div>
             ) : (
               <div className="flex flex-1 items-center p-5 sm:p-6 text-body-md text-on-surface-variant">The submission window for this tender has concluded. Records remain available for audit.</div>

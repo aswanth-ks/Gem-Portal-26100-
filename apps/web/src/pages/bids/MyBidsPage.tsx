@@ -6,7 +6,7 @@
 // TODO: replace BID_ROWS with GET /api/bids; resume drafts at the bidder's
 // real last-completed step instead of step 1.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BidderPortalShell } from '@/layouts/BidderPortalShell';
 import {
@@ -16,6 +16,7 @@ import {
   EmptyState,
   Icon,
   IconButton,
+  Modal,
   PageHeader,
   SearchInput,
   Select,
@@ -28,6 +29,7 @@ import {
   Tr,
   Tabs,
   Tag,
+  Toast,
   type Status,
 } from '@/components/primitives';
 
@@ -141,17 +143,26 @@ export function MyBidsPage() {
   const [showBanner, setShowBanner] = useState(true);
   const [tab, setTab] = useState<TabId>('all');
   const [query, setQuery] = useState('');
+  const [bidRows, setBidRows] = useState(BID_ROWS);
+  const [discardRow, setDiscardRow] = useState<BidRow | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const counts = useMemo(() => {
-    const c: Record<TabId, number> = { all: BID_ROWS.length, draft: 0, submitted: 0, processing: 0, closed: 0 };
-    BID_ROWS.forEach((r) => c[r.status]++);
+    const c: Record<TabId, number> = { all: bidRows.length, draft: 0, submitted: 0, processing: 0, closed: 0 };
+    bidRows.forEach((r) => c[r.status]++);
     return c;
-  }, []);
+  }, [bidRows]);
 
   const rows = useMemo(() => {
     const q = query.toLowerCase().trim();
-    return BID_ROWS.filter((r) => (tab === 'all' || r.status === tab) && (!q || r.search.includes(q)));
-  }, [tab, query]);
+    return bidRows.filter((r) => (tab === 'all' || r.status === tab) && (!q || r.search.includes(q)));
+  }, [bidRows, tab, query]);
 
   return (
     <BidderPortalShell breadcrumb="My Bids">
@@ -284,7 +295,7 @@ export function MyBidsPage() {
                               <Button size="sm" variant="brand" rightIcon="edit" to={`/tenders/${encodeURIComponent(row.ref)}/bid/1`}>
                                 Continue
                               </Button>
-                              <Button variant="link" size="sm" className="!text-danger text-[12.5px]">
+                              <Button variant="link" size="sm" className="!text-danger text-[12.5px]" onClick={() => setDiscardRow(row)}>
                                 Discard draft
                               </Button>
                             </>
@@ -354,6 +365,38 @@ export function MyBidsPage() {
           </div>
         </section>
       </div>
+
+      <Modal
+        open={!!discardRow}
+        onClose={() => setDiscardRow(null)}
+        icon="delete"
+        size="md"
+        title="Discard this draft?"
+        description={discardRow?.title}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDiscardRow(null)}>
+              Keep draft
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (discardRow) {
+                  setBidRows((rows) => rows.filter((r) => r.ref !== discardRow.ref));
+                  setToast(`Draft for ${discardRow.title} discarded`);
+                }
+                setDiscardRow(null);
+              }}
+            >
+              Discard draft
+            </Button>
+          </>
+        }
+      >
+        <p className="text-body-md text-on-surface-variant">This permanently removes the saved draft and any documents attached to it. This cannot be undone.</p>
+      </Modal>
+
+      {toast && <Toast message={toast} />}
     </BidderPortalShell>
   );
 }

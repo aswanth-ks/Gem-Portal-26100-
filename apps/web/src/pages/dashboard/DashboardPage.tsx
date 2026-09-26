@@ -319,24 +319,28 @@ export function DashboardPage() {
               <CardHeader title="Quick actions" className="mb-3" />
               <div className="-mx-2 flex flex-col">
                 {QUICK_ACTIONS.map((a) => {
-                  const inner = (
-                    <>
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-control bg-surface-container-low text-on-surface-variant transition-colors group-hover:bg-info-container group-hover:text-secondary">
-                        <Icon name={a.icon} size="md" />
-                      </span>
-                      <span className="flex-1 text-[14px] font-medium text-on-surface">{a.label}</span>
-                      {a.badge ? <StatusBadge tone="warning">{a.badge}</StatusBadge> : <Icon name="chevron_right" size="md" className="text-outline transition-transform group-hover:translate-x-0.5" />}
-                    </>
+                  const iconChip = (
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-control bg-surface-container-low text-on-surface-variant transition-colors group-hover:bg-info-container group-hover:text-secondary">
+                      <Icon name={a.icon} size="md" />
+                    </span>
                   );
-                  const cls = 'group focus-ring flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-surface-container-low';
-                  return a.to ? (
-                    <Link key={a.label} to={a.to} className={cls}>
-                      {inner}
+                  const label = <span className="flex-1 text-[14px] font-medium text-on-surface">{a.label}</span>;
+                  if (!a.to) {
+                    // Not built yet — shown plainly, not as a clickable action, so nothing implies it works.
+                    return (
+                      <div key={a.label} className="flex items-center gap-3 rounded-control px-2 py-2.5 opacity-70">
+                        {iconChip}
+                        {label}
+                        <Tag>Soon</Tag>
+                      </div>
+                    );
+                  }
+                  return (
+                    <Link key={a.label} to={a.to} className="group focus-ring flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-surface-container-low">
+                      {iconChip}
+                      {label}
+                      {a.badge ? <StatusBadge tone="warning">{a.badge}</StatusBadge> : <Icon name="chevron_right" size="md" className="text-outline transition-transform group-hover:translate-x-0.5" />}
                     </Link>
-                  ) : (
-                    <button key={a.label} type="button" className={cn(cls, 'text-left')}>
-                      {inner}
-                    </button>
                   );
                 })}
               </div>
