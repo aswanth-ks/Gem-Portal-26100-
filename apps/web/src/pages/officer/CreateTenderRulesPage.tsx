@@ -19,6 +19,7 @@ import {
   Button,
   Callout,
   Card,
+  Drawer,
   Field,
   Icon,
   IconButton,
@@ -259,7 +260,7 @@ export function CreateTenderRulesPage() {
           breadcrumbs={[
             { label: 'Tenders', to: '/officer/tenders' },
             { label: 'CPCL/PROC/2026/041', to: CREATE_TENDER_ROUTES.info },
-            { label: 'Technical & financial rules' },
+            { label: 'Rules & compliance' },
           ]}
           eyebrow={
             <>
@@ -267,7 +268,7 @@ export function CreateTenderRulesPage() {
               <Tag mono>{DRAFT_REF}</Tag>
             </>
           }
-          title="Technical & financial rules"
+          title="Rules & compliance"
           description="Define the objective conditions used to evaluate bidder submissions."
         />
 
@@ -389,115 +390,103 @@ export function CreateTenderRulesPage() {
       />
 
       {/* Add / edit drawer */}
-      {drawer && (
-        <div className="fixed inset-0 z-[60] flex justify-end bg-navy-900/50 backdrop-blur-[2px] animate-fade-in" onMouseDown={(e) => e.target === e.currentTarget && setDrawer(null)}>
-          <aside role="dialog" aria-modal="true" aria-labelledby="rule-drawer-title" className="flex h-full w-full max-w-[480px] flex-col bg-surface-container-lowest shadow-overlay animate-slide-in-right">
-            <div className="flex items-start justify-between gap-4 border-b border-outline-variant px-6 py-5">
-              <div className="flex items-start gap-3">
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-info-container text-secondary">
-                  <Icon name={drawer === 'new' ? 'add_task' : 'edit'} size="lg" />
-                </span>
-                <div>
-                  <h2 id="rule-drawer-title" className="text-headline-md text-on-surface">
-                    {drawer === 'new' ? 'Add evaluation rule' : 'Edit evaluation rule'}
-                  </h2>
-                  <p className="mt-0.5 text-body-sm text-on-surface-variant">A fixed condition checked against bidder evidence.</p>
-                </div>
-              </div>
-              <IconButton icon="close" aria-label="Close" onClick={() => setDrawer(null)} />
+      <Drawer
+        open={!!drawer}
+        onClose={() => setDrawer(null)}
+        icon={drawer === 'new' ? 'add_task' : 'edit'}
+        title={drawer === 'new' ? 'Add evaluation rule' : 'Edit evaluation rule'}
+        description="A fixed condition checked against bidder evidence."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDrawer(null)}>
+              Cancel
+            </Button>
+            <Button leftIcon="check" onClick={save}>
+              Save rule
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-5">
+          <Field label="Rule name" htmlFor="ru-name" required error={errors.name}>
+            <Input id="ru-name" value={form.name} state={errors.name ? 'error' : 'default'} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Camera Resolution" />
+          </Field>
+          <Field label="Category" htmlFor="ru-cat">
+            <Select id="ru-cat" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as Category })}>
+              <option value="technical">Technical</option>
+              <option value="financial">Financial</option>
+            </Select>
+          </Field>
+          <Field label="Requirement / field" htmlFor="ru-field" required error={errors.field}>
+            <Input id="ru-field" value={form.field} state={errors.field ? 'error' : 'default'} onChange={(e) => setForm({ ...form, field: e.target.value })} placeholder="e.g. Resolution" />
+          </Field>
+          <Field
+            label="Condition type"
+            htmlFor="ru-cond"
+            required
+            helper={form.condition === 'valid_on_bid_date' ? 'Evidence must be valid on the bid submission date, not just today. Use for certificates, registrations, licences and OEM authorizations.' : undefined}
+          >
+            <Select id="ru-cond" value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value as ConditionType })}>
+              {CONDITIONS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          {cond.needsValue && (
+            <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-4">
+              <Field label="Expected value" htmlFor="ru-val" required error={errors.value}>
+                <Input id="ru-val" value={form.value} state={errors.value ? 'error' : 'default'} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="e.g. 4K" />
+              </Field>
+              <Field label="Unit" htmlFor="ru-unit" aside={<span className="text-[12px] text-on-surface-variant">Optional</span>}>
+                <Input id="ru-unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="days" />
+              </Field>
             </div>
-
-            <div className="flex flex-1 flex-col gap-5 overflow-y-auto scroll-thin px-6 py-6">
-              <Field label="Rule name" htmlFor="ru-name" required error={errors.name}>
-                <Input id="ru-name" value={form.name} state={errors.name ? 'error' : 'default'} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Camera Resolution" />
-              </Field>
-              <Field label="Category" htmlFor="ru-cat">
-                <Select id="ru-cat" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as Category })}>
-                  <option value="technical">Technical</option>
-                  <option value="financial">Financial</option>
-                </Select>
-              </Field>
-              <Field label="Requirement / field" htmlFor="ru-field" required error={errors.field}>
-                <Input id="ru-field" value={form.field} state={errors.field ? 'error' : 'default'} onChange={(e) => setForm({ ...form, field: e.target.value })} placeholder="e.g. Resolution" />
-              </Field>
-              <Field
-                label="Condition type"
-                htmlFor="ru-cond"
-                required
-                helper={form.condition === 'valid_on_bid_date' ? 'Evidence must be valid on the bid submission date, not just today. Use for certificates, registrations, licences and OEM authorizations.' : undefined}
-              >
-                <Select id="ru-cond" value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value as ConditionType })}>
-                  {CONDITIONS.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              {cond.needsValue && (
-                <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-4">
-                  <Field label="Expected value" htmlFor="ru-val" required error={errors.value}>
-                    <Input id="ru-val" value={form.value} state={errors.value ? 'error' : 'default'} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="e.g. 4K" />
-                  </Field>
-                  <Field label="Unit" htmlFor="ru-unit" aside={<span className="text-[12px] text-on-surface-variant">Optional</span>}>
-                    <Input id="ru-unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="days" />
-                  </Field>
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-4 rounded-card border border-outline-variant p-4">
-                <div>
-                  <div className="text-[14px] font-semibold text-on-surface">Mandatory</div>
-                  <div className="text-body-sm text-on-surface-variant">Bids that fail a mandatory rule are flagged for the officer</div>
-                </div>
-                <YesNo label="Mandatory" value={form.mandatory} onChange={(v) => setForm({ ...form, mandatory: v })} />
-              </div>
-              <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-4">
-                <Field label="Source document" htmlFor="ru-src" required error={errors.source}>
-                  <Select id="ru-src" value={form.sourceDoc} state={errors.source ? 'error' : 'default'} onChange={(e) => setForm({ ...form, sourceDoc: e.target.value })}>
-                    <option value="">Select document…</option>
-                    {SOURCE_DOCS.map((d) => (
-                      <option key={d}>{d}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label="Page / section" htmlFor="ru-page">
-                  <Input id="ru-page" value={form.sourcePage} onChange={(e) => setForm({ ...form, sourcePage: e.target.value })} placeholder="Pg. 7" />
-                </Field>
-              </div>
-              <Field label="Evaluation" htmlFor="ru-eval">
-                <Select id="ru-eval" value={form.evaluation} onChange={(e) => setForm({ ...form, evaluation: e.target.value as Evaluation })}>
-                  <option>Automatic</option>
-                  <option>Rule-based</option>
-                </Select>
-              </Field>
-              <Field label="Description / evaluation note" htmlFor="ru-note" aside={<span className="text-[12px] text-on-surface-variant">Optional</span>}>
-                <textarea
-                  id="ru-note"
-                  rows={3}
-                  value={form.note}
-                  onChange={(e) => setForm({ ...form, note: e.target.value })}
-                  placeholder="Guidance for the evaluation committee"
-                  className="w-full rounded-control border border-outline-variant bg-surface-container-lowest px-3.5 py-3 text-[14px] text-on-surface outline-none transition-all placeholder:text-outline hover:border-outline/60 focus:border-secondary focus:shadow-focus"
-                />
-              </Field>
-              {cond.needsValue && form.value && (
-                <div className="rounded-card bg-surface-container-low px-4 py-3 text-body-sm text-on-surface-variant">
-                  Preview: <span className="font-semibold text-on-surface">{form.field || 'Field'}</span> {conditionText(form)}
-                </div>
-              )}
+          )}
+          <div className="flex items-center justify-between gap-4 rounded-card border border-outline-variant p-4">
+            <div>
+              <div className="text-[14px] font-semibold text-on-surface">Mandatory</div>
+              <div className="text-body-sm text-on-surface-variant">Bids that fail a mandatory rule are flagged for the officer</div>
             </div>
-
-            <div className="flex items-center justify-end gap-2.5 border-t border-outline-variant bg-surface-container-low px-6 py-4">
-              <Button variant="secondary" onClick={() => setDrawer(null)}>
-                Cancel
-              </Button>
-              <Button leftIcon="check" onClick={save}>
-                Save rule
-              </Button>
+            <YesNo label="Mandatory" value={form.mandatory} onChange={(v) => setForm({ ...form, mandatory: v })} />
+          </div>
+          <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-4">
+            <Field label="Source document" htmlFor="ru-src" required error={errors.source}>
+              <Select id="ru-src" value={form.sourceDoc} state={errors.source ? 'error' : 'default'} onChange={(e) => setForm({ ...form, sourceDoc: e.target.value })}>
+                <option value="">Select document…</option>
+                {SOURCE_DOCS.map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Page / section" htmlFor="ru-page">
+              <Input id="ru-page" value={form.sourcePage} onChange={(e) => setForm({ ...form, sourcePage: e.target.value })} placeholder="Pg. 7" />
+            </Field>
+          </div>
+          <Field label="Evaluation" htmlFor="ru-eval">
+            <Select id="ru-eval" value={form.evaluation} onChange={(e) => setForm({ ...form, evaluation: e.target.value as Evaluation })}>
+              <option>Automatic</option>
+              <option>Rule-based</option>
+            </Select>
+          </Field>
+          <Field label="Description / evaluation note" htmlFor="ru-note" aside={<span className="text-[12px] text-on-surface-variant">Optional</span>}>
+            <textarea
+              id="ru-note"
+              rows={3}
+              value={form.note}
+              onChange={(e) => setForm({ ...form, note: e.target.value })}
+              placeholder="Guidance for the evaluation committee"
+              className="w-full rounded-control border border-outline-variant bg-surface-container-lowest px-3.5 py-3 text-[14px] text-on-surface outline-none transition-all placeholder:text-outline hover:border-outline/60 focus:border-secondary focus:shadow-focus"
+            />
+          </Field>
+          {cond.needsValue && form.value && (
+            <div className="rounded-card bg-surface-container-low px-4 py-3 text-body-sm text-on-surface-variant">
+              Preview: <span className="font-semibold text-on-surface">{form.field || 'Field'}</span> {conditionText(form)}
             </div>
-          </aside>
+          )}
         </div>
-      )}
+      </Drawer>
 
       {/* View source */}
       <Modal

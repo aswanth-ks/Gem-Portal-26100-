@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { OfficerPortalShell } from '@/layouts/OfficerPortalShell';
-import { Button, Callout, Card, DescriptionList, Icon, IconButton, Input, PageHeader, SearchInput, Select, StatusBadge } from '@/components/primitives';
+import { Button, Callout, Card, DescriptionList, Drawer, Icon, Input, PageHeader, SearchInput, Select, StatusBadge } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 
 type ActionKey =
@@ -321,51 +321,43 @@ export function AuditTrailPage() {
       </div>
 
       {/* Detail drawer */}
-      {active && (
-        <div className="fixed inset-0 z-[60] flex justify-end bg-navy-900/50 backdrop-blur-[2px] animate-fade-in" onMouseDown={(e) => e.target === e.currentTarget && setActive(null)}>
-          <aside role="dialog" aria-modal="true" aria-labelledby="audit-title" className="flex h-full w-full max-w-[460px] flex-col bg-surface-container-lowest shadow-overlay animate-slide-in-right">
-            <div className="flex items-start justify-between gap-4 border-b border-outline-variant px-6 py-5">
-              <div>
-                <div className="text-[12px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Audit event</div>
-                <h2 id="audit-title" className="mt-0.5 text-headline-md text-on-surface">
-                  {ACTIONS[active.action].label}
-                </h2>
-                <div className="mt-2">
-                  <ActionBadge e={active} />
-                </div>
-              </div>
-              <IconButton icon="close" aria-label="Close" onClick={() => setActive(null)} />
-            </div>
-            <div className="flex flex-1 flex-col gap-5 overflow-y-auto scroll-thin px-6 py-6">
-              <DescriptionList
-                items={[
-                  { label: 'Action', value: ACTIONS[active.action].label },
-                  ...(isDoc ? [{ label: 'Document', value: active.document ?? '—' }] : []),
-                  { label: 'Timestamp', value: `${fmt(active.ts, true)} IST` },
-                  { label: 'Actor', value: active.actor },
-                  ...(isDoc && active.access ? [{ label: 'Access', value: active.access }] : []),
-                  { label: 'Tender', value: <span className="font-mono">{active.tender}</span> },
-                  ...(active.bid ? [{ label: 'Bid', value: <span className="font-mono">{active.bid}</span> }] : []),
-                  ...(active.bidder ? [{ label: 'Bidder', value: active.bidder }] : []),
-                  { label: 'Details', value: active.details },
-                  ...(active.result ? [{ label: 'Result', value: active.action === 'final_decision' ? <StatusBadge tone={decisionTone(active.result)}>{active.result}</StatusBadge> : active.result }] : []),
-                  ...(active.comment ? [{ label: active.result === 'Rejected' ? 'Reason' : 'Comment', value: active.comment }] : []),
-                  { label: 'Event ID', value: <span className="font-mono">{active.id}</span> },
-                ]}
-              />
-              <p className="flex items-start gap-2 rounded-control bg-surface-container-low px-3.5 py-3 text-body-sm text-on-surface-variant">
-                <Icon name="history_edu" size="sm" className="mt-0.5 text-outline" />
-                This event is part of the procurement audit record.
-              </p>
-            </div>
-            <div className="flex justify-end border-t border-outline-variant bg-surface-container-low px-6 py-4">
-              <Button variant="secondary" onClick={() => setActive(null)}>
-                Close
-              </Button>
-            </div>
-          </aside>
-        </div>
-      )}
+      <Drawer
+        open={!!active}
+        onClose={() => setActive(null)}
+        eyebrow="Audit event"
+        title={active ? ACTIONS[active.action].label : ''}
+        description={active ? <ActionBadge e={active} /> : undefined}
+        footer={
+          <Button variant="secondary" onClick={() => setActive(null)}>
+            Close
+          </Button>
+        }
+      >
+        {active && (
+          <div className="flex flex-col gap-5">
+            <DescriptionList
+              items={[
+                { label: 'Action', value: ACTIONS[active.action].label },
+                ...(isDoc ? [{ label: 'Document', value: active.document ?? '—' }] : []),
+                { label: 'Timestamp', value: `${fmt(active.ts, true)} IST` },
+                { label: 'Actor', value: active.actor },
+                ...(isDoc && active.access ? [{ label: 'Access', value: active.access }] : []),
+                { label: 'Tender', value: <span className="font-mono">{active.tender}</span> },
+                ...(active.bid ? [{ label: 'Bid', value: <span className="font-mono">{active.bid}</span> }] : []),
+                ...(active.bidder ? [{ label: 'Bidder', value: active.bidder }] : []),
+                { label: 'Details', value: active.details },
+                ...(active.result ? [{ label: 'Result', value: active.action === 'final_decision' ? <StatusBadge tone={decisionTone(active.result)}>{active.result}</StatusBadge> : active.result }] : []),
+                ...(active.comment ? [{ label: active.result === 'Rejected' ? 'Reason' : 'Comment', value: active.comment }] : []),
+                { label: 'Event ID', value: <span className="font-mono">{active.id}</span> },
+              ]}
+            />
+            <p className="flex items-start gap-2 rounded-control bg-surface-container-low px-3.5 py-3 text-body-sm text-on-surface-variant">
+              <Icon name="history_edu" size="sm" className="mt-0.5 text-outline" />
+              This event is part of the procurement audit record.
+            </p>
+          </div>
+        )}
+      </Drawer>
     </OfficerPortalShell>
   );
 }

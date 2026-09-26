@@ -54,7 +54,7 @@ const STATE_CONFIG: Record<
   fresh: {
     label: 'Fresh tender',
     ctaTitle: 'Start bid',
-    ctaSub: 'Initiate new proposal',
+    ctaSub: 'Start your bid',
     bannerTitle: 'No submission draft initiated',
     bannerDesc: 'You have not yet started a bid response for this tender notice.',
     bannerChip: 'Not started',

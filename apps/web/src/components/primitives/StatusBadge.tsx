@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { cn } from '@/utils/cn';
 import { Icon } from './Icon';
 
-type Tone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'brand';
+type Tone = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'outline' | 'brand';
 
 export type Status =
   | 'open'
@@ -21,7 +21,13 @@ export type Status =
   | 'conditional'
   | 'uploaded'
   | 'active'
-  | 'sealed';
+  | 'sealed'
+  // Canonical assessment / verification vocabulary (same meaning everywhere)
+  | 'pass'
+  | 'review'
+  | 'fail'
+  | 'unverified'
+  | 'conflict';
 
 const STATUS: Record<Status, { label: string; tone: Tone; icon?: string; pulse?: boolean; spin?: boolean }> = {
   open: { label: 'Open', tone: 'success' },
@@ -30,17 +36,23 @@ const STATUS: Record<Status, { label: string; tone: Tone; icon?: string; pulse?:
   'under-evaluation': { label: 'Under evaluation', tone: 'info' },
   draft: { label: 'Draft', tone: 'neutral' },
   submitted: { label: 'Submitted', tone: 'success', icon: 'check_circle' },
-  processing: { label: 'Processing', tone: 'warning', icon: 'sync', spin: true },
+  processing: { label: 'Processing', tone: 'info', icon: 'sync', spin: true },
   verified: { label: 'Verified', tone: 'success', icon: 'verified' },
   pending: { label: 'Pending', tone: 'neutral' },
   'action-required': { label: 'Action required', tone: 'danger', icon: 'error' },
   eligible: { label: 'Eligible', tone: 'success', icon: 'check_circle' },
   'not-eligible': { label: 'Not eligible', tone: 'danger', icon: 'cancel' },
-  mandatory: { label: 'Mandatory', tone: 'danger' },
-  conditional: { label: 'Conditional', tone: 'warning' },
+  // Requirement type — not a result, so never red/amber.
+  mandatory: { label: 'Mandatory', tone: 'outline' },
+  conditional: { label: 'Conditional', tone: 'neutral' },
   uploaded: { label: 'Uploaded', tone: 'success', icon: 'check_circle' },
   active: { label: 'Active', tone: 'info' },
-  sealed: { label: 'Sealed', tone: 'success', icon: 'lock' },
+  sealed: { label: 'Sealed', tone: 'neutral', icon: 'lock' },
+  pass: { label: 'PASS', tone: 'success' },
+  review: { label: 'REVIEW', tone: 'warning' },
+  fail: { label: 'FAIL', tone: 'danger' },
+  unverified: { label: 'UNVERIFIED', tone: 'neutral' },
+  conflict: { label: 'CONFLICT', tone: 'danger', icon: 'compare_arrows' },
 };
 
 const TONE: Record<Tone, { pill: string; dot: string }> = {
@@ -49,6 +61,7 @@ const TONE: Record<Tone, { pill: string; dot: string }> = {
   danger: { pill: 'bg-danger-container text-danger-on-container border-danger-border', dot: 'bg-danger' },
   info: { pill: 'bg-info-container text-info-on-container border-info-border', dot: 'bg-info' },
   neutral: { pill: 'bg-neutral-container text-neutral-on-container border-neutral-border', dot: 'bg-neutral' },
+  outline: { pill: 'bg-surface-container-lowest text-on-surface border-outline/60', dot: 'bg-on-surface' },
   brand: { pill: 'bg-navy text-white border-navy', dot: 'bg-saffron' },
 };
 
@@ -125,5 +138,31 @@ export function CountBadge({ children, active, tone }: { children: ReactNode; ac
     >
       {children}
     </span>
+  );
+}
+
+/** Canonical assessment result: PASS green · REVIEW amber · FAIL red. */
+export function ResultBadge({ r, className }: { r: 'pass' | 'review' | 'fail'; className?: string }) {
+  return <StatusBadge status={r} className={className} />;
+}
+
+/** Risk level (decision support): LOW green · MEDIUM amber · HIGH red. */
+export function RiskBadge({ r, className }: { r: 'low' | 'medium' | 'high'; className?: string }) {
+  const m = { low: ['success', 'LOW'], medium: ['warning', 'MEDIUM'], high: ['danger', 'HIGH'] } as const;
+  return (
+    <StatusBadge tone={m[r][0]} className={className}>
+      {m[r][1]}
+    </StatusBadge>
+  );
+}
+
+/** Source verification: VERIFIED green · UNVERIFIED muted (never a pass) · CONFLICT red. */
+export function VerificationBadge({ s, className }: { s: 'verified' | 'unverified' | 'conflict'; className?: string }) {
+  return s === 'verified' ? (
+    <StatusBadge tone="success" icon="verified" className={className}>
+      VERIFIED
+    </StatusBadge>
+  ) : (
+    <StatusBadge status={s} className={className} />
   );
 }

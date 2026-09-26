@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { OfficerPortalShell } from '@/layouts/OfficerPortalShell';
-import { Button, Callout, Card, Checkbox, DescriptionList, EmptyState, Icon, IconButton, Modal, PageHeader, StatusBadge, Tabs, Tag, Toast } from '@/components/primitives';
+import { Button, Callout, Card, Checkbox, DescriptionList, EmptyState, Icon, IconButton, Modal, PageHeader, StatusBadge, Tabs, Tag, Toast, VerificationBadge } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 import { BIDS, STAGE, TENDERS, refToSlug, slugToRef, type Bid, type Result } from './assessmentData';
 import { ResultBadge, RiskBadge } from './BidAssessmentWorkspacePage';
@@ -136,10 +136,6 @@ const ADDRESS_CLAUSE = { clause: 'Registered address declared by the bidder must
 
 const now = () => new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
 
-function VBadge({ s }: { s: VStatus }) {
-  const m = { verified: ['success', 'VERIFIED'], unverified: ['neutral', 'UNVERIFIED'], conflict: ['danger', 'CONFLICT'] } as const;
-  return <StatusBadge tone={m[s][0]}>{m[s][1]}</StatusBadge>;
-}
 
 function Section({ title, icon, aside, children, className }: { title: string; icon: string; aside?: ReactNode; children: ReactNode; className?: string }) {
   return (
@@ -874,7 +870,7 @@ function BidResult({ tenderTitle, tenderRef, stageLabel, bid, listPath }: { tend
                             {v.status !== 'unverified' && ` · ${v.checked}`}
                           </div>
                         </div>
-                        <VBadge s={v.status} />
+                        <VerificationBadge s={v.status} />
                         <Icon name={expandedV === v.id ? 'expand_less' : 'expand_more'} size="md" className="text-outline" />
                       </button>
                       {(expandedV === v.id || v.status === 'unverified') && (

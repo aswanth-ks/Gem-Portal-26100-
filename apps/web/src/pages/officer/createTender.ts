@@ -9,7 +9,7 @@ export const CREATE_TENDER_STEPS: StepItem[] = [
   { label: 'Tender information' },
   { label: 'Tender documents' },
   { label: 'Bidder requirements' },
-  { label: 'Technical & financial rules' },
+  { label: 'Rules & compliance' },
   { label: 'Review & publish' },
 ];
 

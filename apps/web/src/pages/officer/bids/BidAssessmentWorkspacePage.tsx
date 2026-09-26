@@ -8,19 +8,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { OfficerPortalShell } from '@/layouts/OfficerPortalShell';
-import { Card, Icon, IconButton, PageHeader, SearchInput, Select, StatusBadge, Tabs } from '@/components/primitives';
+import { Card, Icon, IconButton, PageHeader, ResultBadge, RiskBadge, SearchInput, Select, StatusBadge, Tabs } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 import { BIDS, STAGE, TENDERS, assessmentPath, slugToRef, type Bid, type Result, type Risk } from './assessmentData';
 
-export function ResultBadge({ r }: { r: Result }) {
-  const m = { pass: ['success', 'PASS'], review: ['warning', 'REVIEW'], fail: ['danger', 'FAIL'] } as const;
-  return <StatusBadge tone={m[r][0]}>{m[r][1]}</StatusBadge>;
-}
-
-export function RiskBadge({ r }: { r: Risk }) {
-  const m = { low: ['success', 'LOW'], medium: ['warning', 'MEDIUM'], high: ['danger', 'HIGH'] } as const;
-  return <StatusBadge tone={m[r][0]}>{m[r][1]}</StatusBadge>;
-}
+export { ResultBadge, RiskBadge };
 
 const RISK_ORDER: Record<Risk, number> = { low: 0, medium: 1, high: 2 };
 

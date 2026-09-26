@@ -1,6 +1,6 @@
 // Procurement Officer — Create Tender, Step 3: Bidder Requirements. Defines
 // only WHAT bidders must submit (documents and information). Scoring and
-// evaluation rules belong to Step 4 (Technical & financial rules).
+// evaluation rules belong to Step 4 (Rules & compliance).
 //
 // The system has already read the Step 2 documents: ?mode=ai (default) opens
 // with AI-suggested requirements, each linked to its source page; ?mode=manual
@@ -20,10 +20,10 @@ import {
   Callout,
   Card,
   DescriptionList,
+  Drawer,
   EmptyState,
   Field,
   Icon,
-  IconButton,
   Input,
   Modal,
   PageHeader,
@@ -349,7 +349,7 @@ export function CreateTenderRequirementsPage() {
 
         <p className="flex items-center gap-2 text-body-sm text-on-surface-variant">
           <Icon name="info" size="sm" className="text-outline" />
-          This step sets what bidders must submit. How each item is evaluated is set in Step 4 — Technical & financial rules.
+          This step sets what bidders must submit. How each item is evaluated is set in Step 4 — Rules & compliance.
         </p>
       </div>
 
@@ -366,141 +366,129 @@ export function CreateTenderRequirementsPage() {
         }
         right={
           <Button rightIcon="arrow_forward" disabled={reqs.length === 0} onClick={() => (flagged.length ? setWarnOpen(true) : navigate(CREATE_TENDER_ROUTES.rules))}>
-            Continue to technical & financial rules
+            Continue to rules & compliance
           </Button>
         }
       />
 
       {/* Review / edit / add drawer */}
-      {drawer && (
-        <div className="fixed inset-0 z-[60] flex justify-end bg-navy-900/50 backdrop-blur-[2px] animate-fade-in" onMouseDown={(e) => e.target === e.currentTarget && setDrawer(null)}>
-          <aside role="dialog" aria-modal="true" aria-labelledby="rq-drawer-title" className="flex h-full w-full max-w-[480px] flex-col bg-surface-container-lowest shadow-overlay animate-slide-in-right">
-            <div className="flex items-start justify-between gap-4 border-b border-outline-variant px-6 py-5">
-              <div className="flex items-start gap-3">
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-info-container text-secondary">
-                  <Icon name={drawer.mode === 'view' ? 'fact_check' : drawer.mode === 'new' ? 'playlist_add' : 'edit'} size="lg" />
-                </span>
-                <div>
-                  <h2 id="rq-drawer-title" className="text-headline-md text-on-surface">
-                    {drawer.mode === 'view' ? 'Review requirement' : drawer.mode === 'edit' ? 'Edit requirement' : 'Add requirement'}
-                  </h2>
-                  {drawer.mode !== 'new' && <p className="mt-0.5 text-body-sm text-on-surface-variant">{drawer.item.name}</p>}
+      <Drawer
+        open={!!drawer}
+        onClose={() => setDrawer(null)}
+        icon={drawer ? (drawer.mode === 'view' ? 'fact_check' : drawer.mode === 'new' ? 'playlist_add' : 'edit') : undefined}
+        title={drawer ? (drawer.mode === 'view' ? 'Review requirement' : drawer.mode === 'edit' ? 'Edit requirement' : 'Add requirement') : ''}
+        description={drawer && drawer.mode !== 'new' ? drawer.item.name : undefined}
+        footer={
+          drawer?.mode === 'view' ? (
+            <div className="flex w-full items-center justify-between gap-2.5">
+              <Button variant="ghost" leftIcon="delete" className="text-danger" onClick={() => setRemoveReq(drawer.item)}>
+                Remove
+              </Button>
+              <div className="flex gap-2.5">
+                <Button variant="secondary" leftIcon="edit" onClick={() => startEdit(drawer.item)}>
+                  Edit
+                </Button>
+                <Button leftIcon="check" onClick={() => accept(drawer.item)}>
+                  Accept
+                </Button>
+              </div>
+            </div>
+          ) : drawer ? (
+            <>
+              <Button variant="secondary" onClick={() => (drawer.mode === 'edit' ? setDrawer({ item: drawer.item, mode: 'view' }) : setDrawer(null))}>
+                Cancel
+              </Button>
+              <Button leftIcon="check" onClick={save}>
+                {drawer.mode === 'new' ? 'Add requirement' : 'Save'}
+              </Button>
+            </>
+          ) : undefined
+        }
+      >
+        {drawer?.mode === 'view' ? (
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-wrap items-center gap-2">
+              {drawer.item.flag ? <StatusBadge tone="warning" icon="flag">Needs review</StatusBadge> : <StatusBadge tone="success">Ready</StatusBadge>}
+              <OriginLabel origin={drawer.item.origin} />
+            </div>
+            {drawer.item.flag && (
+              <Callout tone="warning" icon="flag" title="Why this needs review">
+                {drawer.item.flag}
+              </Callout>
+            )}
+            <DescriptionList
+              items={[
+                { label: 'Requirement', value: drawer.item.name },
+                { label: 'Type', value: drawer.item.type },
+                { label: 'Mandatory / conditional', value: drawer.item.conditional ? 'Conditional' : drawer.item.mandatory ? 'Mandatory' : 'Optional' },
+                { label: 'Description', value: drawer.item.description || '—' },
+                { label: 'Source document', value: drawer.item.sourceDoc || 'Officer added (no source)' },
+                { label: 'Source page / section', value: drawer.item.sourcePage ? `Page ${drawer.item.sourcePage}` : '—' },
+              ]}
+            />
+            {drawer.item.sourceDoc && (
+              <div className="rounded-card border border-outline-variant bg-surface-container-low p-4">
+                <div className="mb-1.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Source</div>
+                <div className="font-mono text-[12px] text-on-surface">
+                  {drawer.item.sourceDoc} — Page {drawer.item.sourcePage}
                 </div>
               </div>
-              <IconButton icon="close" aria-label="Close" onClick={() => setDrawer(null)} />
-            </div>
-
-            {drawer.mode === 'view' ? (
-              <>
-                <div className="flex flex-1 flex-col gap-5 overflow-y-auto scroll-thin px-6 py-6">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {drawer.item.flag ? <StatusBadge tone="warning" icon="flag">Needs review</StatusBadge> : <StatusBadge tone="success">Ready</StatusBadge>}
-                    <OriginLabel origin={drawer.item.origin} />
-                  </div>
-                  {drawer.item.flag && (
-                    <Callout tone="warning" icon="flag" title="Why this needs review">
-                      {drawer.item.flag}
-                    </Callout>
-                  )}
-                  <DescriptionList
-                    items={[
-                      { label: 'Requirement', value: drawer.item.name },
-                      { label: 'Type', value: drawer.item.type },
-                      { label: 'Mandatory / conditional', value: drawer.item.conditional ? 'Conditional' : drawer.item.mandatory ? 'Mandatory' : 'Optional' },
-                      { label: 'Description', value: drawer.item.description || '—' },
-                      { label: 'Source document', value: drawer.item.sourceDoc || 'Officer added (no source)' },
-                      { label: 'Source page / section', value: drawer.item.sourcePage ? `Page ${drawer.item.sourcePage}` : '—' },
-                    ]}
-                  />
-                  {drawer.item.sourceDoc && (
-                    <div className="rounded-card border border-outline-variant bg-surface-container-low p-4">
-                      <div className="mb-1.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-on-surface-variant">Source</div>
-                      <div className="font-mono text-[12px] text-on-surface">
-                        {drawer.item.sourceDoc} — Page {drawer.item.sourcePage}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center justify-between gap-2.5 border-t border-outline-variant bg-surface-container-low px-6 py-4">
-                  <Button variant="ghost" leftIcon="delete" className="text-danger" onClick={() => setRemoveReq(drawer.item)}>
-                    Remove
-                  </Button>
-                  <div className="flex gap-2.5">
-                    <Button variant="secondary" leftIcon="edit" onClick={() => startEdit(drawer.item)}>
-                      Edit
-                    </Button>
-                    <Button leftIcon="check" onClick={() => accept(drawer.item)}>
-                      Accept
-                    </Button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex flex-1 flex-col gap-5 overflow-y-auto scroll-thin px-6 py-6">
-                  <Field label="Requirement name" htmlFor="rq-name" required error={errors.name}>
-                    <Input id="rq-name" value={form.name} state={errors.name ? 'error' : 'default'} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. ISO 9001:2015 Certificate" />
-                  </Field>
-                  <Field label="Type" htmlFor="rq-type">
-                    <Select id="rq-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as ReqType })}>
-                      {TYPES.map((t) => (
-                        <option key={t}>{t}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <div className="divide-y divide-outline-variant rounded-card border border-outline-variant">
-                    <div className="flex items-center justify-between gap-4 p-4">
-                      <div>
-                        <div className="text-[14px] font-semibold text-on-surface">Mandatory</div>
-                        <div className="text-body-sm text-on-surface-variant">Every bidder must submit this</div>
-                      </div>
-                      <YesNo label="Mandatory" value={form.mandatory} onChange={(v) => setForm({ ...form, mandatory: v, conditional: v ? false : form.conditional })} />
-                    </div>
-                    <div className="flex items-center justify-between gap-4 p-4">
-                      <div>
-                        <div className="text-[14px] font-semibold text-on-surface">Conditional</div>
-                        <div className="text-body-sm text-on-surface-variant">Only certain bidders submit this (e.g. MSEs)</div>
-                      </div>
-                      <YesNo label="Conditional" value={form.conditional} onChange={(v) => setForm({ ...form, conditional: v, mandatory: v ? false : form.mandatory })} />
-                    </div>
-                  </div>
-                  <Field label="Description" htmlFor="rq-desc" aside={<span className="text-[12px] text-on-surface-variant">Optional</span>}>
-                    <textarea
-                      id="rq-desc"
-                      rows={3}
-                      value={form.description}
-                      onChange={(e) => setForm({ ...form, description: e.target.value })}
-                      placeholder="What exactly the bidder must provide"
-                      className="w-full rounded-control border border-outline-variant bg-surface-container-lowest px-3.5 py-3 text-[14px] text-on-surface outline-none transition-all placeholder:text-outline hover:border-outline/60 focus:border-secondary focus:shadow-focus"
-                    />
-                  </Field>
-                  <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-4">
-                    <Field label="Source document" htmlFor="rq-src">
-                      <Select id="rq-src" value={form.sourceDoc} onChange={(e) => setForm({ ...form, sourceDoc: e.target.value })}>
-                        <option value="">None (officer added)</option>
-                        {SOURCE_DOCS.map((d) => (
-                          <option key={d}>{d}</option>
-                        ))}
-                      </Select>
-                    </Field>
-                    <Field label="Page / section" htmlFor="rq-page">
-                      <Input id="rq-page" value={form.sourcePage} onChange={(e) => setForm({ ...form, sourcePage: e.target.value })} placeholder="12" />
-                    </Field>
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-2.5 border-t border-outline-variant bg-surface-container-low px-6 py-4">
-                  <Button variant="secondary" onClick={() => (drawer.mode === 'edit' ? setDrawer({ item: drawer.item, mode: 'view' }) : setDrawer(null))}>
-                    Cancel
-                  </Button>
-                  <Button leftIcon="check" onClick={save}>
-                    {drawer.mode === 'new' ? 'Add requirement' : 'Save'}
-                  </Button>
-                </div>
-              </>
             )}
-          </aside>
-        </div>
-      )}
+          </div>
+        ) : drawer ? (
+          <div className="flex flex-col gap-5">
+            <Field label="Requirement name" htmlFor="rq-name" required error={errors.name}>
+              <Input id="rq-name" value={form.name} state={errors.name ? 'error' : 'default'} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. ISO 9001:2015 Certificate" />
+            </Field>
+            <Field label="Type" htmlFor="rq-type">
+              <Select id="rq-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as ReqType })}>
+                {TYPES.map((t) => (
+                  <option key={t}>{t}</option>
+                ))}
+              </Select>
+            </Field>
+            <div className="divide-y divide-outline-variant rounded-card border border-outline-variant">
+              <div className="flex items-center justify-between gap-4 p-4">
+                <div>
+                  <div className="text-[14px] font-semibold text-on-surface">Mandatory</div>
+                  <div className="text-body-sm text-on-surface-variant">Every bidder must submit this</div>
+                </div>
+                <YesNo label="Mandatory" value={form.mandatory} onChange={(v) => setForm({ ...form, mandatory: v, conditional: v ? false : form.conditional })} />
+              </div>
+              <div className="flex items-center justify-between gap-4 p-4">
+                <div>
+                  <div className="text-[14px] font-semibold text-on-surface">Conditional</div>
+                  <div className="text-body-sm text-on-surface-variant">Only certain bidders submit this (e.g. MSEs)</div>
+                </div>
+                <YesNo label="Conditional" value={form.conditional} onChange={(v) => setForm({ ...form, conditional: v, mandatory: v ? false : form.mandatory })} />
+              </div>
+            </div>
+            <Field label="Description" htmlFor="rq-desc" aside={<span className="text-[12px] text-on-surface-variant">Optional</span>}>
+              <textarea
+                id="rq-desc"
+                rows={3}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="What exactly the bidder must provide"
+                className="w-full rounded-control border border-outline-variant bg-surface-container-lowest px-3.5 py-3 text-[14px] text-on-surface outline-none transition-all placeholder:text-outline hover:border-outline/60 focus:border-secondary focus:shadow-focus"
+              />
+            </Field>
+            <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-4">
+              <Field label="Source document" htmlFor="rq-src">
+                <Select id="rq-src" value={form.sourceDoc} onChange={(e) => setForm({ ...form, sourceDoc: e.target.value })}>
+                  <option value="">None (officer added)</option>
+                  {SOURCE_DOCS.map((d) => (
+                    <option key={d}>{d}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Page / section" htmlFor="rq-page">
+                <Input id="rq-page" value={form.sourcePage} onChange={(e) => setForm({ ...form, sourcePage: e.target.value })} placeholder="12" />
+              </Field>
+            </div>
+          </div>
+        ) : null}
+      </Drawer>
 
       <Modal
         open={!!removeReq}

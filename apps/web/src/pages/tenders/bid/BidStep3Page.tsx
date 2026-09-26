@@ -467,7 +467,7 @@ export function BidStep3Page() {
               <Icon name="vpn_key" size="xl" className="absolute inset-0 m-auto h-6 w-6 text-secondary" />
             </div>
             <h3 className="text-headline-md text-on-surface">Submitting your bid…</h3>
-            <p className="mt-1.5 text-body-sm text-on-surface-variant">Don't refresh or leave while the vault seals your application.</p>
+            <p className="mt-1.5 text-body-sm text-on-surface-variant">Don't refresh or leave while the vault seals your bid.</p>
             <ol className="mt-6 flex flex-col gap-3 rounded-card bg-surface-container-low p-5 text-left">
               {LOADER_STEPS.map((label, i) => {
                 const done = i < doneSteps;

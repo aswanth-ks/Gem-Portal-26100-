@@ -53,7 +53,7 @@ const SUMMARY: { step: number; icon: string; title: string; to: string; items: {
   {
     step: 4,
     icon: 'rule',
-    title: 'Technical & financial rules',
+    title: 'Rules & compliance',
     to: CREATE_TENDER_ROUTES.rules,
     items: [
       { label: 'Technical rules', value: '6 active · resolution, night vision, IP rating, storage, warranty, OEM authorization' },

@@ -278,7 +278,7 @@ export function OfficerTendersPage() {
         </Card>
 
         <Callout tone="neutral" icon="gavel" title={<span className="flex flex-wrap items-center gap-2">Statutory sealed-bid governance & role-based isolation <Tag mono>CVC-CIRCULAR-2024-V3</Tag></span>}>
-          Showing tenders authorized under Manali Refinery Directorate (Refinery-III). Tenders in "Submission open" enforce HSM isolation: bidder identities, commercial proposals and qualification documents stay unreadable to all officers until the statutory opening-ceremony quorum is reached.
+          Showing tenders authorized under Manali Refinery Directorate (Refinery-III). Tenders in "Submission open" enforce HSM isolation: bidder identities, commercial bids and qualification documents stay unreadable to all officers until the statutory opening-ceremony quorum is reached.
         </Callout>
       </div>
 
