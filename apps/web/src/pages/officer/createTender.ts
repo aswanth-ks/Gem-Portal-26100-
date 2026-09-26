@@ -17,4 +17,6 @@ export const CREATE_TENDER_ROUTES = {
   info: '/officer/tenders/new',
   documents: '/officer/tenders/new/documents',
   requirements: '/officer/tenders/new/requirements',
+  rules: '/officer/tenders/new/rules',
+  review: '/officer/tenders/new/review',
 } as const;

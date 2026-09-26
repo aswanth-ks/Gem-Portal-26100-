@@ -12,6 +12,8 @@ import { OfficerTendersPage } from '@/pages/officer/OfficerTendersPage';
 import { CreateTenderInfoPage } from '@/pages/officer/CreateTenderInfoPage';
 import { CreateTenderDocumentsPage } from '@/pages/officer/CreateTenderDocumentsPage';
 import { CreateTenderRequirementsPage } from '@/pages/officer/CreateTenderRequirementsPage';
+import { CreateTenderRulesPage } from '@/pages/officer/CreateTenderRulesPage';
+import { CreateTenderReviewPage } from '@/pages/officer/CreateTenderReviewPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { TenderListingPage } from '@/pages/tenders/TenderListingPage';
 import { TenderDetailsPage } from '@/pages/tenders/TenderDetailsPage';
@@ -34,6 +36,8 @@ export function AppRouter() {
           <Route path="/officer/tenders/new" element={<CreateTenderInfoPage />} />
           <Route path="/officer/tenders/new/documents" element={<CreateTenderDocumentsPage />} />
           <Route path="/officer/tenders/new/requirements" element={<CreateTenderRequirementsPage />} />
+          <Route path="/officer/tenders/new/rules" element={<CreateTenderRulesPage />} />
+          <Route path="/officer/tenders/new/review" element={<CreateTenderReviewPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/tenders" element={<TenderListingPage />} />
           <Route path="/tenders/:ref" element={<TenderDetailsPage />} />

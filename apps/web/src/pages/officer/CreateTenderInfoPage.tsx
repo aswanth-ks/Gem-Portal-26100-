@@ -62,7 +62,7 @@ function groupIndian(digits: string) {
 
 const HOUR = 3600_000;
 
-function YesNo({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
+export function YesNo({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <div role="radiogroup" aria-label={label} className="inline-flex shrink-0 rounded-control border border-outline-variant bg-surface-container-low p-1">
       {[true, false].map((v) => (
