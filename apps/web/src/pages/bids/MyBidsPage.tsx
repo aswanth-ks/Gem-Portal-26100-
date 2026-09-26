@@ -223,11 +223,11 @@ export function MyBidsPage() {
           </div>
 
           {rows.length > 0 ? (
-            <Table minWidth={980}>
+            <Table minWidth={820}>
               <THead>
                 <tr>
                   <Th className="pl-6">Tender</Th>
-                  <Th>References</Th>
+                  <Th className="hidden min-[1400px]:table-cell">References</Th>
                   <Th>Timeline</Th>
                   <Th>Closing</Th>
                   <Th>Status</Th>
@@ -255,10 +255,15 @@ export function MyBidsPage() {
                               {row.justSubmitted && <StatusBadge tone="info">Just submitted</StatusBadge>}
                             </div>
                             <div className="mt-1 text-body-sm text-on-surface-variant">{row.tags.join(' · ')}</div>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[12px] text-on-surface-variant min-[1400px]:hidden">
+                              <span>{row.ref}</span>
+                              <span aria-hidden="true">·</span>
+                              <span>{row.bidId}</span>
+                            </div>
                           </div>
                         </div>
                       </Td>
-                      <Td>
+                      <Td className="hidden min-[1400px]:table-cell">
                         <div className="flex flex-col gap-1">
                           <span className="font-mono text-[12.5px] text-on-surface">{row.ref}</span>
                           <span className="font-mono text-[12.5px] text-on-surface-variant">{row.bidId}</span>
