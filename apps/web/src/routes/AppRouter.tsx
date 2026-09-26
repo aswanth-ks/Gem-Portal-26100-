@@ -7,6 +7,7 @@ import { App } from '@/app/App';
 import { HomePage } from '@/pages/home/HomePage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { OfficerLoginPage } from '@/pages/auth/OfficerLoginPage';
+import { OfficerDashboardPage } from '@/pages/officer/OfficerDashboardPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { TenderListingPage } from '@/pages/tenders/TenderListingPage';
 import { TenderDetailsPage } from '@/pages/tenders/TenderDetailsPage';
@@ -24,6 +25,7 @@ export function AppRouter() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/officer/login" element={<OfficerLoginPage />} />
+          <Route path="/officer/dashboard" element={<OfficerDashboardPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/tenders" element={<TenderListingPage />} />
           <Route path="/tenders/:ref" element={<TenderDetailsPage />} />

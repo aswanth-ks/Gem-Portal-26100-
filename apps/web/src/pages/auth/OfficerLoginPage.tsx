@@ -10,7 +10,7 @@
 // features/auth/api and route to the officer workspace once it exists.
 
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Breadcrumbs, Button, Callout, Card, Checkbox, Field, Icon, IconButton, Input, StatusBadge, Tabs } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 import { PublicFooter, PublicHeader } from '@/pages/home/PublicChrome';
@@ -73,6 +73,7 @@ export function OfficerLoginPage() {
   const [captchaIdx, setCaptchaIdx] = useState(0);
   const [dsc, setDsc] = useState(true);
   const [phase, setPhase] = useState<'idle' | 'verifying' | 'granted'>('idle');
+  const navigate = useNavigate();
   const captchaCode = CAPTCHA_POOL[captchaIdx];
   const banner = STATES[state].banner;
 
@@ -99,7 +100,7 @@ export function OfficerLoginPage() {
     if (next.officerId || next.password || next.captcha) return;
     setPhase('verifying');
     window.setTimeout(() => setPhase('granted'), 1200);
-    window.setTimeout(() => setPhase('idle'), 3400);
+    window.setTimeout(() => navigate('/officer/dashboard'), 2200);
   }
 
   return (
