@@ -38,6 +38,7 @@ const NOTICES: { date: string; tag: string; tone: 'danger' | 'warning' | 'neutra
 const QUICK_ACTIONS: { icon: string; title: string; sub: string; cta: string; to?: string; primary?: boolean }[] = [
   { icon: 'person_add', title: 'Online bidder enrollment', sub: 'Register company & Class-3 DSC', cta: 'Enroll' },
   { icon: 'login', title: 'Bidder portal login', sub: 'Access live bids & submissions', cta: 'Login', to: '/login', primary: true },
+  { icon: 'admin_panel_settings', title: 'Procurement officer login', sub: 'CPCL internal evaluation workspace', cta: 'Sign in', to: '/officer/login' },
   { icon: 'lock_reset', title: 'Generate / reset token PIN', sub: 'DSC authentication recovery', cta: 'Reset' },
   { icon: 'contact_phone', title: 'Find nodal officer', sub: 'Division contact directory', cta: 'Search' },
 ];
@@ -95,6 +96,10 @@ export function HomePage() {
                   Explore active tenders
                 </Button>
               </div>
+              <Link to="/officer/login" className="focus-ring inline-flex w-fit items-center gap-2 rounded text-body-sm text-white/70 hover:text-white">
+                <Icon name="admin_panel_settings" size="md" className="text-saffron" />
+                CPCL procurement officer? <span className="font-semibold underline underline-offset-4">Sign in to Procurement Intelligence</span>
+              </Link>
               <div className="mt-2 flex flex-wrap gap-x-8 gap-y-3 text-body-sm text-white/65">
                 {[
                   ['verified_user', 'STQC certified'],

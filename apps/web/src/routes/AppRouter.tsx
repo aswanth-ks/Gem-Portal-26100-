@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { App } from '@/app/App';
 import { HomePage } from '@/pages/home/HomePage';
 import { LoginPage } from '@/pages/auth/LoginPage';
+import { OfficerLoginPage } from '@/pages/auth/OfficerLoginPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { TenderListingPage } from '@/pages/tenders/TenderListingPage';
 import { TenderDetailsPage } from '@/pages/tenders/TenderDetailsPage';
@@ -22,6 +23,7 @@ export function AppRouter() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/officer/login" element={<OfficerLoginPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/tenders" element={<TenderListingPage />} />
           <Route path="/tenders/:ref" element={<TenderDetailsPage />} />

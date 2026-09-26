@@ -18,7 +18,7 @@ const NAV = [
   { id: 'contact', label: 'Contact CPCL' },
 ];
 
-export function PublicHeader({ active }: { active?: 'home' | 'login' }) {
+export function PublicHeader({ active }: { active?: 'home' | 'login' | 'officer' }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <header className="sticky top-0 z-40">
@@ -95,6 +95,11 @@ export function PublicHeader({ active }: { active?: 'home' | 'login' }) {
               <Icon name="call" size="sm" className="text-secondary" />
               <span className="font-semibold text-on-surface num">1800-425-7800</span>
             </div>
+            {active !== 'officer' && (
+              <Button to="/officer/login" variant="secondary" leftIcon="admin_panel_settings" className="hidden md:inline-flex">
+                Officer login
+              </Button>
+            )}
             {active !== 'login' && (
               <Button to="/login" leftIcon="vpn_key" className="hidden sm:inline-flex">
                 Bidder / DSC login
