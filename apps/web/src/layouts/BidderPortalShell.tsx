@@ -11,6 +11,7 @@ const BIDDER_CONFIG: PortalConfig = {
   brandSubtitle: 'Bidder Portal',
   brandIcon: 'shield',
   homeLabel: 'Workspace',
+  role: 'bidder',
   searchPlaceholder: 'Search tenders or NIT numbers…',
   notifications: 4,
   groups: [

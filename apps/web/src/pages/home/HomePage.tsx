@@ -152,7 +152,7 @@ export function HomePage() {
 
         <div className="mx-auto grid w-full max-w-page grid-cols-1 gap-8 px-4 py-10 sm:px-6 lg:grid-cols-12 lg:px-10 lg:py-12">
           {/* MAIN */}
-          <div className="flex flex-col gap-8 lg:col-span-8">
+          <div className="flex flex-col gap-6 lg:col-span-8">
             {/* Search */}
             <Card padding="lg">
               <CardHeader

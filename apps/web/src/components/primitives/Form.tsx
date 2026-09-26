@@ -3,7 +3,7 @@ import { cn } from '@/utils/cn';
 import { Icon } from './Icon';
 
 const CONTROL =
-  'w-full h-11 rounded-control border bg-surface-container-lowest px-3.5 text-[14px] text-on-surface placeholder:text-outline ' +
+  'w-full h-10 rounded-control border bg-surface-container-lowest px-3.5 text-[14px] text-on-surface placeholder:text-outline ' +
   'transition-all outline-none focus:border-secondary focus:shadow-focus disabled:bg-surface-container-low disabled:text-on-surface-variant disabled:cursor-not-allowed';
 
 type State = 'default' | 'valid' | 'error';
@@ -173,7 +173,7 @@ export function SearchInput({ size = 'lg', shortcut = true, onSubmitSearch, subm
       className={cn(
         'group relative flex items-center rounded-card border border-outline-variant bg-surface-container-lowest shadow-xs transition-all',
         'focus-within:border-secondary focus-within:shadow-focus hover:border-outline/60',
-        lg ? 'h-14 pl-4 pr-2' : 'h-10 pl-3 pr-1.5 !rounded-control',
+        lg ? 'h-12 pl-4 pr-2' : 'h-10 pl-3 pr-1.5 !rounded-control',
         className,
       )}
     >

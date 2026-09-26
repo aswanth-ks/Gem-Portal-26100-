@@ -8,8 +8,8 @@ type Tone = 'default' | 'subtle' | 'brand' | 'info' | 'success' | 'warning' | 'd
 const PADDING: Record<Padding, string> = {
   none: '',
   sm: 'p-4',
-  md: 'p-5 sm:p-6',
-  lg: 'p-6 sm:p-7',
+  md: 'p-5',
+  lg: 'p-5 sm:p-6',
 };
 
 const TONE: Record<Tone, string> = {

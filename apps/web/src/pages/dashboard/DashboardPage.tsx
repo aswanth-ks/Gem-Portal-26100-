@@ -157,7 +157,7 @@ export function DashboardPage() {
 
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-12">
           {/* MAIN COLUMN */}
-          <div className="flex flex-col gap-8 xl:col-span-8">
+          <div className="flex flex-col gap-6 xl:col-span-8">
             {/* Continue where you left off — the one emphasized card */}
             <Card padding="none" className="overflow-hidden">
               <div className="h-1 bg-gradient-to-r from-secondary via-secondary to-saffron" aria-hidden="true" />

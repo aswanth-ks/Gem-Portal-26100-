@@ -117,7 +117,7 @@ export function OfficerTendersPage() {
 
   return (
     <OfficerPortalShell>
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-6">
         <PageHeader
           breadcrumbs={[{ label: 'Officer workspace', to: '/officer/dashboard' }, { label: 'Tenders' }]}
           eyebrow={

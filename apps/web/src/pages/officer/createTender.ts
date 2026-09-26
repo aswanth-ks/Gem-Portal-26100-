@@ -1,6 +1,5 @@
-// Shared constants for the officer "Create tender" wizard so every step shows
-// the same draft reference and stepper. Bidder requirements and evaluation
-// rules are combined into one supervised "Compliance configuration" step.
+// Shared constants for the officer "Create tender" wizard (O04, O05, …) so
+// every step shows the same draft reference and stepper.
 
 import type { StepItem } from '@/components/primitives';
 
@@ -9,13 +8,15 @@ export const DRAFT_REF = 'TND-DRAFT-2026-0047';
 export const CREATE_TENDER_STEPS: StepItem[] = [
   { label: 'Tender information' },
   { label: 'Tender documents' },
-  { label: 'Compliance configuration' },
+  { label: 'Bidder requirements' },
+  { label: 'Technical & financial rules' },
   { label: 'Review & publish' },
 ];
 
 export const CREATE_TENDER_ROUTES = {
   info: '/officer/tenders/new',
   documents: '/officer/tenders/new/documents',
-  compliance: '/officer/tenders/new/compliance',
+  requirements: '/officer/tenders/new/requirements',
+  rules: '/officer/tenders/new/rules',
   review: '/officer/tenders/new/review',
 } as const;

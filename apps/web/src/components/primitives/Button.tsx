@@ -19,8 +19,8 @@ const VARIANTS: Record<ButtonVariant, string> = {
 
 const SIZES: Record<ButtonSize, string> = {
   sm: 'h-8 px-3 gap-1.5 text-[13px] rounded-control',
-  md: 'h-10 px-4 gap-2 text-[14px] rounded-control',
-  lg: 'h-12 px-6 gap-2 text-[15px] rounded-control',
+  md: 'h-9 px-4 gap-2 text-[14px] rounded-control',
+  lg: 'h-11 px-5 gap-2 text-[15px] rounded-control',
 };
 
 const ICON_SIZE: Record<ButtonSize, 'sm' | 'md' | 'lg'> = { sm: 'sm', md: 'md', lg: 'lg' };
@@ -102,7 +102,7 @@ export function IconButton({ icon, variant = 'ghost', size = 'md', active, badge
       type={type}
       className={cn(
         'relative inline-flex items-center justify-center rounded-control transition-all focus-ring disabled:opacity-50',
-        size === 'sm' ? 'h-8 w-8' : 'h-10 w-10',
+        size === 'sm' ? 'h-8 w-8' : 'h-9 w-9',
         variant === 'ghost' && 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface',
         variant === 'secondary' && 'bg-surface-container-lowest border border-outline-variant text-on-surface-variant shadow-xs hover:text-on-surface hover:bg-surface-container-low',
         variant === 'primary' && 'bg-secondary text-white hover:bg-secondary-container',

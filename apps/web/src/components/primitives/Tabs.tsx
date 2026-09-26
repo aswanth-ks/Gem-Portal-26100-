@@ -57,7 +57,7 @@ export function Tabs<T extends string>({ items, value, onChange, variant = 'unde
             onClick={() => onChange(t.id)}
             type="button"
             className={cn(
-              'focus-ring relative -mb-px inline-flex h-12 items-center gap-2 whitespace-nowrap border-b-2 text-[14px] transition-colors',
+              'focus-ring relative -mb-px inline-flex h-11 items-center gap-2 whitespace-nowrap border-b-2 text-[14px] transition-colors',
               active ? 'border-secondary font-semibold text-on-surface' : 'border-transparent font-medium text-on-surface-variant hover:text-on-surface',
             )}
           >

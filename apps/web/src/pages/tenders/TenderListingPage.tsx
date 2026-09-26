@@ -244,7 +244,7 @@ export function TenderListingPage() {
     <BidderPortalShell>
       {toast && <Toast message={toast} icon="content_copy" />}
 
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-6">
         {/* Demo state simulator — deliberately quiet */}
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-dashed border-outline-variant bg-surface-container-lowest/60 px-4 py-2.5">
           <span className="inline-flex items-center gap-2 text-[12px] font-medium text-on-surface-variant">

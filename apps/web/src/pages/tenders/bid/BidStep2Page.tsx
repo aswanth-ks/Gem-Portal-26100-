@@ -52,7 +52,7 @@ export function BidStep2Page() {
 
   return (
     <BidderPortalShell breadcrumb="Bid Submission">
-      <div className="flex flex-col gap-8 pb-28">
+      <div className="flex flex-col gap-6 pb-28">
         <PageHeader
           breadcrumbs={[{ label: 'Tenders', to: '/tenders' }, { label: tenderRef, to: `/tenders/${encodeURIComponent(tenderRef)}` }, { label: 'Bid submission' }]}
           eyebrow={<StatusBadge tone="info">Step 2 of 3 · Envelope 2.0</StatusBadge>}

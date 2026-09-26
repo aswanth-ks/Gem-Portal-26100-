@@ -155,7 +155,7 @@ export function MyBidsPage() {
 
   return (
     <BidderPortalShell breadcrumb="My Bids">
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-6">
         {showBanner && (
           <Callout
             tone="success"

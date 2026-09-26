@@ -22,7 +22,7 @@ export function Th({ className, align, ...rest }: ThHTMLAttributes<HTMLTableCell
       scope="col"
       {...rest}
       className={cn(
-        'h-11 px-5 text-[12px] font-semibold uppercase tracking-[0.05em] text-on-surface-variant border-b border-outline-variant whitespace-nowrap',
+        'h-10 px-5 text-[12px] font-semibold uppercase tracking-[0.05em] text-on-surface-variant border-b border-outline-variant whitespace-nowrap',
         align === 'right' && 'text-right',
         align === 'center' && 'text-center',
         className,
@@ -54,7 +54,7 @@ export function Td({ className, align, ...rest }: TdHTMLAttributes<HTMLTableCell
   return (
     <td
       {...rest}
-      className={cn('px-5 py-4 align-middle text-[14px] text-on-surface', align === 'right' && 'text-right', align === 'center' && 'text-center', className)}
+      className={cn('px-5 py-3.5 align-middle text-[14px] text-on-surface', align === 'right' && 'text-right', align === 'center' && 'text-center', className)}
     />
   );
 }

@@ -12,6 +12,7 @@ const OFFICER_CONFIG: PortalConfig = {
   brandSubtitle: 'Officer Portal · MoP&NG',
   brandIcon: 'local_fire_department',
   homeLabel: 'Officer workspace',
+  role: 'officer',
   searchPlaceholder: 'Search tenders, bids or vendors…',
   notifications: 3,
   groups: [
@@ -20,7 +21,8 @@ const OFFICER_CONFIG: PortalConfig = {
       items: [
         { id: 'dashboard', icon: 'grid_view', label: 'Dashboard', to: '/officer/dashboard' },
         { id: 'tenders', icon: 'assignment', label: 'Tenders', to: '/officer/tenders' },
-        { id: 'bids', icon: 'gavel', label: 'Bids' },
+        { id: 'bids', icon: 'gavel', label: 'Bids', to: '/officer/bids' },
+        { id: 'assessment', icon: 'rule_folder', label: 'Bid assessment', to: '/officer/assessment' },
         { id: 'reviews', icon: 'fact_check', label: 'Reviews', badge: '3' },
       ],
     },
@@ -28,7 +30,7 @@ const OFFICER_CONFIG: PortalConfig = {
       label: 'Compliance',
       items: [
         { id: 'verification', icon: 'verified_user', label: 'Verification' },
-        { id: 'audit', icon: 'history_edu', label: 'Audit Trail' },
+        { id: 'audit', icon: 'history_edu', label: 'Audit Trail', to: '/officer/audit' },
         { id: 'reports', icon: 'insights', label: 'Reports' },
       ],
     },

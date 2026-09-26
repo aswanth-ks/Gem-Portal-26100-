@@ -268,7 +268,7 @@ export function TenderDetailsPage() {
         </section>
 
         {/* Sticky section nav */}
-        <div className="sticky top-16 z-20 -mx-4 border-y border-outline-variant bg-background/90 px-4 py-2.5 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+        <div className="sticky top-header z-20 -mx-4 border-y border-outline-variant bg-background/90 px-4 py-2.5 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="flex items-center justify-between gap-3">
             <Tabs
               variant="pills"

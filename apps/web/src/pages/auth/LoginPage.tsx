@@ -47,7 +47,7 @@ export function LoginPage() {
       <PublicHeader active="login" />
 
       <main id="main-content" className="mx-auto w-full max-w-page flex-1 px-4 py-10 sm:px-6 lg:px-10 lg:py-14">
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-col gap-3">
               <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Bidder services' }, { label: 'Bidder login' }]} />

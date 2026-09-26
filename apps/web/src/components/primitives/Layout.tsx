@@ -40,10 +40,10 @@ interface PageHeaderProps {
 /** Breadcrumb → eyebrow → title → description → actions. The title gets room to breathe. */
 export function PageHeader({ breadcrumbs, eyebrow, title, description, meta, actions, className }: PageHeaderProps) {
   return (
-    <header className={cn('flex flex-col gap-5', className)}>
+    <header className={cn('flex flex-col gap-4', className)}>
       {breadcrumbs && <Breadcrumbs items={breadcrumbs} />}
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex max-w-3xl flex-col gap-2.5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex max-w-3xl flex-col gap-2">
           {eyebrow && <div className="flex flex-wrap items-center gap-2">{eyebrow}</div>}
           <h1 className="text-headline-xl-mobile sm:text-page-title text-on-surface">{title}</h1>
           {description && <p className="text-body-lg text-on-surface-variant">{description}</p>}

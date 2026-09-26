@@ -144,7 +144,7 @@ export function CreateTenderInfoPage() {
 
   return (
     <OfficerPortalShell breadcrumb="Create tender">
-      <div className="flex flex-col gap-8 pb-28">
+      <div className="flex flex-col gap-6 pb-28">
         <PageHeader
           breadcrumbs={[
             { label: 'Officer workspace', to: '/officer/dashboard' },
@@ -253,7 +253,7 @@ export function CreateTenderInfoPage() {
             </Field>
           </div>
           <Callout tone="info" icon="info" className="mt-5">
-            Bidder requirements and evaluation rules are identified from your documents in Step 3 (Compliance configuration). Do not embed scoring matrices here.
+            Bidder requirements are set in Step 3 and evaluation rules in Step 4. Do not embed scoring matrices here.
           </Callout>
         </Section>
 

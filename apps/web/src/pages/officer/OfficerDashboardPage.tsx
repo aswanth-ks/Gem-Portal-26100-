@@ -203,7 +203,7 @@ export function OfficerDashboardPage() {
         </section>
 
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-12">
-          <div className="flex flex-col gap-8 xl:col-span-8">
+          <div className="flex flex-col gap-6 xl:col-span-8">
             {/* Action queue */}
             <Card padding="lg">
               <CardHeader

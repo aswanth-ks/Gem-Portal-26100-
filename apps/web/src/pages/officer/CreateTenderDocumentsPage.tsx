@@ -9,7 +9,8 @@
 // sample packet are React state; file selection is local only.
 //
 // TODO: POST /api/officer/tenders/drafts/:ref/documents (multipart + DSC seal)
-// "Continue" runs document analysis, then opens Compliance Configuration.
+// "Continue" opens the requirement-setup choice (AI-assisted or manual),
+// both leading to O07 Bidder Requirements.
 
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -36,7 +37,7 @@ import {
 } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 import { CREATE_TENDER_ROUTES, CREATE_TENDER_STEPS, DRAFT_REF } from './createTender';
-import { DocumentAnalysisModal } from './DocumentAnalysisModal';
+import { RequirementSetupModal } from './RequirementSetupModal';
 
 type DocState = 'ready' | 'action-required';
 
@@ -215,7 +216,7 @@ export function CreateTenderDocumentsPage() {
 
   return (
     <OfficerPortalShell breadcrumb="Create tender">
-      <div className="flex flex-col gap-8 pb-28">
+      <div className="flex flex-col gap-6 pb-28">
         {/* Prototype states — same quiet strip as the bidder listing */}
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-dashed border-outline-variant bg-surface-container-lowest/60 px-4 py-2.5">
           <span className="inline-flex items-center gap-2 text-[12px] font-medium text-on-surface-variant">
@@ -448,7 +449,7 @@ export function CreateTenderDocumentsPage() {
         }
         right={
           <Button rightIcon="arrow_forward" disabled={!canContinue} onClick={() => setSetupOpen(true)}>
-            Continue to compliance configuration
+            Continue to requirement setup
           </Button>
         }
       />
@@ -618,7 +619,7 @@ export function CreateTenderDocumentsPage() {
             <div>
               <div className="mb-2 text-[13px] font-semibold text-on-surface">Content preview</div>
               <div className="rounded-card border border-outline-variant bg-surface-container-lowest p-4 font-mono text-[12px] leading-relaxed text-on-surface-variant">
-                {(inspectDoc.preview ?? [`[${inspectDoc.file}]`, 'Full preview is available after compliance configuration (Step 3).']).map((l) => (
+                {(inspectDoc.preview ?? [`[${inspectDoc.file}]`, 'Full preview is available after requirement setup (Step 3).']).map((l) => (
                   <p key={l}>{l}</p>
                 ))}
               </div>
@@ -627,7 +628,7 @@ export function CreateTenderDocumentsPage() {
         )}
       </Modal>
 
-      <DocumentAnalysisModal open={setupOpen} documentCount={ready} />
+      <RequirementSetupModal open={setupOpen} onClose={() => setSetupOpen(false)} documentCount={ready} />
 
       {toast && <Toast message={toast} />}
     </OfficerPortalShell>
