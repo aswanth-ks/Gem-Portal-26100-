@@ -53,12 +53,12 @@ const SUMMARY: { step: number; icon: string; title: string; to: string; items: {
   {
     step: 4,
     icon: 'rule',
-    title: 'Rules & compliance',
+    title: 'Technical & financial rules',
     to: CREATE_TENDER_ROUTES.rules,
     items: [
-      { label: 'Technical', value: 'Pass/fail · min score 70/100' },
-      { label: 'Financial', value: 'L1 overall · landed cost incl. GST' },
-      { label: 'Policies', value: 'MSE preference · Make in India · Integrity Pact' },
+      { label: 'Technical rules', value: '6 active · resolution, night vision, IP rating, storage, warranty, OEM authorization' },
+      { label: 'Financial rules', value: '3 active · turnover, bid validity, EMD' },
+      { label: 'Evaluation', value: 'Deterministic conditions · officer takes the final decision' },
     ],
   },
 ];

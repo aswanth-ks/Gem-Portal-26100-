@@ -6,7 +6,7 @@
 // action bar as Steps 1–2.
 //
 // TODO: GET /api/officer/tenders/drafts/:ref/requirements/suggestions and
-// persist requirements. "Continue" routes to Step 4 (Rules & compliance).
+// persist requirements. "Continue" routes to Step 4 (Technical & financial rules).
 
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -256,7 +256,7 @@ export function CreateTenderRequirementsPage() {
         }
         right={
           <Button rightIcon="arrow_forward" disabled={!canContinue} onClick={() => navigate(CREATE_TENDER_ROUTES.rules)}>
-            Continue to rules & compliance
+            Continue to evaluation rules
           </Button>
         }
       />

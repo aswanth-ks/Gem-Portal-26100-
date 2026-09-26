@@ -253,7 +253,7 @@ export function CreateTenderInfoPage() {
             </Field>
           </div>
           <Callout tone="info" icon="info" className="mt-5">
-            Rules and qualification checklists are mapped in Step 4 (Rules & compliance). Do not embed scoring matrices here.
+            Bidder requirements are set in Step 3 and evaluation rules in Step 4. Do not embed scoring matrices here.
           </Callout>
         </Section>
 
