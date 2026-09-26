@@ -19,7 +19,7 @@ const OFFICER_CONFIG: PortalConfig = {
       label: 'Workspace',
       items: [
         { id: 'dashboard', icon: 'grid_view', label: 'Dashboard', to: '/officer/dashboard' },
-        { id: 'tenders', icon: 'assignment', label: 'Tenders' },
+        { id: 'tenders', icon: 'assignment', label: 'Tenders', to: '/officer/tenders' },
         { id: 'bids', icon: 'gavel', label: 'Bids' },
         { id: 'reviews', icon: 'fact_check', label: 'Reviews', badge: '3' },
       ],

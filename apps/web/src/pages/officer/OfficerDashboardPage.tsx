@@ -178,7 +178,7 @@ export function OfficerDashboardPage() {
               <Button variant="secondary" leftIcon="download">
                 Export summary
               </Button>
-              <Button leftIcon="add">Create tender</Button>
+              <Button leftIcon="add" to="/officer/tenders">Create tender</Button>
             </>
           }
         />
@@ -256,7 +256,7 @@ export function OfficerDashboardPage() {
                   <h2 className="text-headline-md text-on-surface">My tenders</h2>
                   <p className="mt-0.5 text-body-sm text-on-surface-variant">Active, draft and in-evaluation files assigned to your desk.</p>
                 </div>
-                <Button variant="ghost" size="sm" rightIcon="arrow_forward">
+                <Button variant="ghost" size="sm" rightIcon="arrow_forward" to="/officer/tenders">
                   View all tenders
                 </Button>
               </div>
