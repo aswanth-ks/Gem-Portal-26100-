@@ -33,14 +33,14 @@ import {
 } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 
-const KPIS: { label: string; value: string; hint: string; icon: string; tone: 'info' | 'neutral' | 'success' | 'warning'; action: string }[] = [
-  { label: 'Active tenders', value: '12', hint: '4 closing within 48h', icon: 'assignment', tone: 'info', action: 'Filter portfolio' },
-  { label: 'Draft tenders', value: '3', hint: '1 awaiting review approval', icon: 'edit_document', tone: 'neutral', action: 'Review specifications' },
-  { label: 'Submission open', value: '5', hint: 'Bids sealed in sovereign vault', icon: 'lock_clock', tone: 'success', action: 'Monitor intake' },
-  { label: 'Under evaluation', value: '2', hint: 'Ready for committee scoring', icon: 'rate_review', tone: 'warning', action: 'View assessment logs' },
+const KPIS: { label: string; value: string; hint: string; icon: string; tone: 'info' | 'neutral' | 'success' | 'warning'; action: string; to: string }[] = [
+  { label: 'Active tenders', value: '12', hint: '4 closing within 48h', icon: 'assignment', tone: 'info', action: 'Filter portfolio', to: '/officer/tenders' },
+  { label: 'Draft tenders', value: '3', hint: '1 awaiting review approval', icon: 'edit_document', tone: 'neutral', action: 'Review specifications', to: '/officer/tenders/new' },
+  { label: 'Submission open', value: '5', hint: 'Bids sealed in sovereign vault', icon: 'lock_clock', tone: 'success', action: 'Monitor intake', to: '/officer/bids' },
+  { label: 'Under evaluation', value: '2', hint: 'Ready for committee scoring', icon: 'rate_review', tone: 'warning', action: 'View assessment logs', to: '/officer/bids' },
 ];
 
-const ACTIONS: { icon: string; tone: 'info' | 'warning' | 'danger'; kind: string; ref: string; stage: string; stageTone: 'info' | 'warning' | 'danger'; title: string; body: string; cta: string }[] = [
+const ACTIONS: { icon: string; tone: 'info' | 'warning' | 'danger'; kind: string; ref: string; stage: string; stageTone: 'info' | 'warning' | 'danger'; title: string; body: string; cta: string; to: string }[] = [
   {
     icon: 'assignment_late',
     tone: 'info',
@@ -51,6 +51,7 @@ const ACTIONS: { icon: string; tone: 'info' | 'warning' | 'danger'; kind: string
     title: 'Industrial Safety Equipment Procurement (Turnkey Delivery)',
     body: 'Specifications drafted by Materials Management; verify eligibility criteria before gazette publication and NIC portal release.',
     cta: 'Review tender',
+    to: '/officer/tenders',
   },
   {
     icon: 'fact_check',
@@ -62,6 +63,7 @@ const ACTIONS: { icon: string; tone: 'info' | 'warning' | 'danger'; kind: string
     title: 'Supply of CCTV Cameras for Public Safety Infrastructure',
     body: '8 bids vaulted; 3 automated format validations need human-in-the-loop sign-off before the Technical Evaluation Committee meets.',
     cta: 'Review bids',
+    to: '/officer/bids?tender=CPCL-PROC-2026-041',
   },
   {
     icon: 'warning',
@@ -73,6 +75,7 @@ const ACTIONS: { icon: string; tone: 'info' | 'warning' | 'danger'; kind: string
     title: 'Industrial Network Security Equipment · ABC Telecom Integrators Pvt Ltd',
     body: 'GST legal name in the GSTN master directory does not match the submitted Certificate of Incorporation. Clarification or show-cause notice required (CVC rule 4.3).',
     cta: 'Review finding',
+    to: '/officer/verification',
   },
   {
     icon: 'timer',
@@ -84,6 +87,7 @@ const ACTIONS: { icon: string; tone: 'info' | 'warning' | 'danger'; kind: string
     title: 'Industrial Safety Monitoring & Gas Detection Sensor Array',
     body: '6 bids received and vaulted. Unsealing needs DSC validation from both the primary officer and the finance vigilance member.',
     cta: 'Manage tender',
+    to: '/officer/tenders',
   },
 ];
 
@@ -195,7 +199,7 @@ export function OfficerDashboardPage() {
               </div>
               <div className="text-[26px] font-semibold leading-8 tracking-tight text-on-surface num">{k.value}</div>
               <div className="text-body-sm text-on-surface-variant">{k.hint}</div>
-              <Button variant="link" size="sm" rightIcon="arrow_forward" className="mt-1 w-fit text-[13px]">
+              <Button variant="link" size="sm" rightIcon="arrow_forward" className="mt-1 w-fit text-[13px]" to={k.to}>
                 {k.action}
               </Button>
             </Card>
@@ -240,7 +244,7 @@ export function OfficerDashboardPage() {
                           <StatusBadge tone={a.stageTone}>{a.stage}</StatusBadge>
                         </div>
                       </div>
-                      <Button size="sm" variant={a.tone === 'danger' ? 'danger' : 'secondary'} rightIcon="arrow_forward" className="shrink-0 self-start">
+                      <Button size="sm" variant={a.tone === 'danger' ? 'danger' : 'secondary'} rightIcon="arrow_forward" className="shrink-0 self-start" to={a.to}>
                         {a.cta}
                       </Button>
                     </li>
@@ -314,7 +318,7 @@ export function OfficerDashboardPage() {
                           <CellStack primary={<span className="whitespace-nowrap num">{t.deadline}</span>} secondary={<span className={cn(t.status === 'closing' && 'font-medium text-danger-on-container')}>{t.deadlineNote}</span>} />
                         </Td>
                         <Td align="right" className="pr-6">
-                          <Button size="sm" variant={t.status === 'closing' ? 'primary' : 'secondary'}>
+                          <Button size="sm" variant={t.status === 'closing' ? 'primary' : 'secondary'} to={t.status === 'draft' ? '/officer/tenders/new' : '/officer/tenders'}>
                             {t.cta}
                           </Button>
                         </Td>
@@ -383,7 +387,7 @@ export function OfficerDashboardPage() {
                   </div>
                 ))}
               </div>
-              <Button variant="brand" fullWidth rightIcon="arrow_forward" className="mt-4">
+              <Button variant="brand" fullWidth rightIcon="arrow_forward" className="mt-4" to="/officer/reviews">
                 Open review queue
               </Button>
             </Card>
@@ -406,7 +410,7 @@ export function OfficerDashboardPage() {
               </ol>
               <div className="mt-5 flex items-center justify-between gap-2 border-t border-outline-variant pt-4">
                 <StatusBadge status="verified">SHA-256 digest valid</StatusBadge>
-                <Button variant="link" size="sm" rightIcon="arrow_forward">
+                <Button variant="link" size="sm" rightIcon="arrow_forward" to="/officer/audit">
                   Audit trail
                 </Button>
               </div>

@@ -197,7 +197,7 @@ export function OfficerTendersPage() {
               <TBody>
                 {rows.map((t) => (
                   <Tr key={t.ref}>
-                    <Td className="pl-6 !py-5 min-w-[300px]">
+                    <Td className="pl-6 !py-5 min-w-[240px]">
                       <CellStack primary={t.title} secondary={<><span className="font-mono text-[12px] text-on-surface">{t.ref}</span> · {t.nature}<span className="block">{t.category} · {t.unit}</span></>} />
                     </Td>
                     <Td>
@@ -223,7 +223,13 @@ export function OfficerTendersPage() {
                       <CellStack primary={<span className="whitespace-nowrap num">{t.deadline}</span>} secondary={<span className={cn('whitespace-nowrap', t.urgent && 'font-medium text-danger-on-container')}>{t.deadlineNote}</span>} />
                     </Td>
                     <Td align="right" className="pr-6">
-                      <Button size="sm" variant={t.primary ? 'primary' : 'secondary'} leftIcon={t.ctaIcon === 'arrow_forward' ? undefined : t.ctaIcon} rightIcon={t.ctaIcon === 'arrow_forward' ? 'arrow_forward' : undefined}>
+                      <Button
+                        size="sm"
+                        variant={t.primary ? 'primary' : 'secondary'}
+                        leftIcon={t.ctaIcon === 'arrow_forward' ? undefined : t.ctaIcon}
+                        rightIcon={t.ctaIcon === 'arrow_forward' ? 'arrow_forward' : undefined}
+                        to={t.stage === 'draft' ? '/officer/tenders/new' : t.stage === 'open' || t.stage === 'evaluation' ? '/officer/bids' : undefined}
+                      >
                         {t.cta}
                       </Button>
                     </Td>
