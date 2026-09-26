@@ -9,8 +9,7 @@
 // sample packet are React state; file selection is local only.
 //
 // TODO: POST /api/officer/tenders/drafts/:ref/documents (multipart + DSC seal)
-// "Continue" opens the requirement-setup choice (AI-assisted or manual),
-// both leading to O07 Bidder Requirements.
+// "Continue" runs document analysis, then opens Compliance Configuration.
 
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -37,7 +36,7 @@ import {
 } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 import { CREATE_TENDER_ROUTES, CREATE_TENDER_STEPS, DRAFT_REF } from './createTender';
-import { RequirementSetupModal } from './RequirementSetupModal';
+import { DocumentAnalysisModal } from './DocumentAnalysisModal';
 
 type DocState = 'ready' | 'action-required';
 
@@ -449,7 +448,7 @@ export function CreateTenderDocumentsPage() {
         }
         right={
           <Button rightIcon="arrow_forward" disabled={!canContinue} onClick={() => setSetupOpen(true)}>
-            Continue to requirement setup
+            Continue to compliance configuration
           </Button>
         }
       />
@@ -619,7 +618,7 @@ export function CreateTenderDocumentsPage() {
             <div>
               <div className="mb-2 text-[13px] font-semibold text-on-surface">Content preview</div>
               <div className="rounded-card border border-outline-variant bg-surface-container-lowest p-4 font-mono text-[12px] leading-relaxed text-on-surface-variant">
-                {(inspectDoc.preview ?? [`[${inspectDoc.file}]`, 'Full preview is available after requirement setup (Step 3).']).map((l) => (
+                {(inspectDoc.preview ?? [`[${inspectDoc.file}]`, 'Full preview is available after compliance configuration (Step 3).']).map((l) => (
                   <p key={l}>{l}</p>
                 ))}
               </div>
@@ -628,7 +627,7 @@ export function CreateTenderDocumentsPage() {
         )}
       </Modal>
 
-      <RequirementSetupModal open={setupOpen} onClose={() => setSetupOpen(false)} documentCount={ready} />
+      <DocumentAnalysisModal open={setupOpen} documentCount={ready} />
 
       {toast && <Toast message={toast} />}
     </OfficerPortalShell>

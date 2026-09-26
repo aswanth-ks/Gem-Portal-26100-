@@ -2,7 +2,7 @@
 // TODO: populate remaining routes as each Stitch screen is implemented
 // (documents, intelligence, verification, consent, audit, settings).
 
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom';
 import { App } from '@/app/App';
 import { HomePage } from '@/pages/home/HomePage';
 import { LoginPage } from '@/pages/auth/LoginPage';
@@ -11,8 +11,7 @@ import { OfficerDashboardPage } from '@/pages/officer/OfficerDashboardPage';
 import { OfficerTendersPage } from '@/pages/officer/OfficerTendersPage';
 import { CreateTenderInfoPage } from '@/pages/officer/CreateTenderInfoPage';
 import { CreateTenderDocumentsPage } from '@/pages/officer/CreateTenderDocumentsPage';
-import { CreateTenderRequirementsPage } from '@/pages/officer/CreateTenderRequirementsPage';
-import { CreateTenderRulesPage } from '@/pages/officer/CreateTenderRulesPage';
+import { ComplianceConfigPage } from '@/pages/officer/ComplianceConfigPage';
 import { CreateTenderReviewPage } from '@/pages/officer/CreateTenderReviewPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { TenderListingPage } from '@/pages/tenders/TenderListingPage';
@@ -35,8 +34,9 @@ export function AppRouter() {
           <Route path="/officer/tenders" element={<OfficerTendersPage />} />
           <Route path="/officer/tenders/new" element={<CreateTenderInfoPage />} />
           <Route path="/officer/tenders/new/documents" element={<CreateTenderDocumentsPage />} />
-          <Route path="/officer/tenders/new/requirements" element={<CreateTenderRequirementsPage />} />
-          <Route path="/officer/tenders/new/rules" element={<CreateTenderRulesPage />} />
+          <Route path="/officer/tenders/new/compliance" element={<ComplianceConfigPage />} />
+          <Route path="/officer/tenders/new/requirements" element={<Navigate to="/officer/tenders/new/compliance" replace />} />
+          <Route path="/officer/tenders/new/rules" element={<Navigate to="/officer/tenders/new/compliance" replace />} />
           <Route path="/officer/tenders/new/review" element={<CreateTenderReviewPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/tenders" element={<TenderListingPage />} />

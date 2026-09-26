@@ -1,5 +1,5 @@
-// Procurement Officer — Create Tender, Step 5: Review & Publish. Read-only
-// summary of Steps 1–4 with edit links, a pre-publish checklist, officer
+// Procurement Officer — Create Tender, Step 4: Review & Publish. Read-only
+// summary of Steps 1–3 with edit links, a pre-publish checklist, officer
 // declaration and a DSC sign-and-publish flow (confirm → signing → published).
 // Same header, stepper, cards and action bar as the previous steps.
 //
@@ -42,28 +42,18 @@ const SUMMARY: { step: number; icon: string; title: string; to: string; items: {
   },
   {
     step: 3,
-    icon: 'checklist',
-    title: 'Bidder requirements',
-    to: `${CREATE_TENDER_ROUTES.requirements}?mode=ai`,
+    icon: 'fact_check',
+    title: 'Compliance configuration',
+    to: CREATE_TENDER_ROUTES.compliance,
     items: [
-      { label: 'Requirements', value: '7 total · 5 mandatory · 2 conditional' },
-      { label: 'Review', value: 'All AI suggestions approved by officer' },
-    ],
-  },
-  {
-    step: 4,
-    icon: 'rule',
-    title: 'Technical & financial rules',
-    to: CREATE_TENDER_ROUTES.rules,
-    items: [
-      { label: 'Technical rules', value: '6 active · resolution, night vision, IP rating, storage, warranty, OEM authorization' },
-      { label: 'Financial rules', value: '3 active · turnover, bid validity, EMD' },
-      { label: 'Evaluation', value: 'Deterministic conditions · officer takes the final decision' },
+      { label: 'Bidder requirements', value: '7 · 6 AI suggested, 1 officer added' },
+      { label: 'Evaluation rules', value: '8 · technical & financial, each linked to its source page' },
+      { label: 'Officer review', value: 'Flagged items reviewed · final decisions stay with the officer' },
     ],
   },
 ];
 
-const CHECKS = ['Schedule meets the CVC 14-day minimum', 'All documents fingerprinted and DSC-sealed', 'Every requirement reviewed by the officer', 'Integrity Pact applied (value above ₹ 25 Lakh)'];
+const CHECKS = ['Schedule meets the CVC 14-day minimum', 'All documents fingerprinted and DSC-sealed', 'Requirements and rules reviewed by the officer', 'Integrity Pact applied (value above ₹ 25 Lakh)'];
 
 type Phase = 'idle' | 'confirm' | 'signing' | 'published';
 
@@ -134,7 +124,7 @@ export function CreateTenderReviewPage() {
         />
 
         <Card padding="lg">
-          <Stepper steps={CREATE_TENDER_STEPS} current={5} />
+          <Stepper steps={CREATE_TENDER_STEPS} current={4} />
         </Card>
 
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -182,7 +172,7 @@ export function CreateTenderReviewPage() {
       <BidActionBar
         left={
           <>
-            <Button variant="secondary" leftIcon="arrow_back" to={CREATE_TENDER_ROUTES.rules}>
+            <Button variant="secondary" leftIcon="arrow_back" to={CREATE_TENDER_ROUTES.compliance}>
               Back
             </Button>
             <Button variant="ghost" leftIcon="save" onClick={() => navigate('/officer/tenders')}>
