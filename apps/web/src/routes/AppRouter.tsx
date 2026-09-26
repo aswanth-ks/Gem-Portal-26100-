@@ -10,6 +10,7 @@ import { OfficerLoginPage } from '@/pages/auth/OfficerLoginPage';
 import { OfficerDashboardPage } from '@/pages/officer/OfficerDashboardPage';
 import { OfficerTendersPage } from '@/pages/officer/OfficerTendersPage';
 import { CreateTenderInfoPage } from '@/pages/officer/CreateTenderInfoPage';
+import { CreateTenderDocumentsPage } from '@/pages/officer/CreateTenderDocumentsPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { TenderListingPage } from '@/pages/tenders/TenderListingPage';
 import { TenderDetailsPage } from '@/pages/tenders/TenderDetailsPage';
@@ -30,6 +31,7 @@ export function AppRouter() {
           <Route path="/officer/dashboard" element={<OfficerDashboardPage />} />
           <Route path="/officer/tenders" element={<OfficerTendersPage />} />
           <Route path="/officer/tenders/new" element={<CreateTenderInfoPage />} />
+          <Route path="/officer/tenders/new/documents" element={<CreateTenderDocumentsPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/tenders" element={<TenderListingPage />} />
           <Route path="/tenders/:ref" element={<TenderDetailsPage />} />

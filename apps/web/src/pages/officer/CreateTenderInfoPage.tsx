@@ -7,7 +7,7 @@
 // value in words, schedule checks (CVC 14-day window, opening ≥ deadline +30m),
 // yes/no toggles, autosave indicator and the Save/Discard modals are React state.
 //
-// TODO: POST /api/officer/tenders/drafts; route "Continue" to O05 Tender Documents.
+// TODO: POST /api/officer/tenders/drafts. "Continue" routes to O05 Tender Documents.
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -27,20 +27,10 @@ import {
   Stepper,
   StatusBadge,
   Tag,
-  Toast,
-  type StepItem,
 } from '@/components/primitives';
 import { cn } from '@/utils/cn';
+import { CREATE_TENDER_ROUTES, CREATE_TENDER_STEPS, DRAFT_REF } from './createTender';
 
-const DRAFT_REF = 'TND-DRAFT-2026-0047';
-
-const STEPS: StepItem[] = [
-  { label: 'Tender information' },
-  { label: 'Tender documents' },
-  { label: 'AI extraction' },
-  { label: 'Rules & compliance' },
-  { label: 'Review & publish' },
-];
 
 // Indian numbering in words (up to crores) for the tender value notation.
 const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -122,7 +112,6 @@ export function CreateTenderInfoPage() {
   const [exitOpen, setExitOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [continuing, setContinuing] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setSavedAgo((s) => s + 10), 10_000);
@@ -150,11 +139,7 @@ export function CreateTenderInfoPage() {
 
   function handleContinue() {
     setContinuing(true);
-    setTimeout(() => {
-      setContinuing(false);
-      setToast('Tender core metadata committed. Step 2 · Tender documents is next.');
-      setTimeout(() => setToast(null), 3500);
-    }, 700);
+    setTimeout(() => navigate(CREATE_TENDER_ROUTES.documents), 500);
   }
 
   return (
@@ -185,7 +170,7 @@ export function CreateTenderInfoPage() {
         />
 
         <Card padding="lg">
-          <Stepper steps={STEPS} current={1} />
+          <Stepper steps={CREATE_TENDER_STEPS} current={1} />
         </Card>
 
         {/* 1. Basic information */}
@@ -445,7 +430,6 @@ export function CreateTenderInfoPage() {
         </p>
       </Modal>
 
-      {toast && <Toast message={toast} />}
     </OfficerPortalShell>
   );
 }
