@@ -1,14 +1,15 @@
-// Procurement Officer — Bid assessment workspace (sidebar "Bid assessment").
-//   LEFT  — tender list (select a tender)
-//   RIGHT — bids for the selected tender (filter / sort, no ranking labels)
-// "View result" opens the full per-bid assessment page.
+// Procurement Officer — Bids workspace (sidebar "Bids"). Three zones:
+//   LEFT    tender list (select a tender)
+//   CENTER  bids for the selected tender (filter / sort, no ranking labels)
+//   RIGHT   preview of the selected bid — summary + top findings, with
+//           "Open full assessment" going to the evidence-review page.
 // Tenders still open are sealed: bid count only, no bidder data.
 // ?tender=<slug> preselects a tender (used by "Back" from the bid page).
 
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { OfficerPortalShell } from '@/layouts/OfficerPortalShell';
-import { Card, Icon, IconButton, PageHeader, ResultBadge, RiskBadge, SearchInput, Select, StatusBadge, Tabs } from '@/components/primitives';
+import { Button, Card, Icon, IconButton, PageHeader, ResultBadge, RiskBadge, SearchInput, Select, StatusBadge, Tabs } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 import { BIDS, STAGE, TENDERS, assessmentPath, slugToRef, type Bid, type Result, type Risk } from './assessmentData';
 
@@ -28,6 +29,7 @@ export function BidAssessmentWorkspacePage() {
   const [review, setReview] = useState('');
   const [sortKey, setSortKey] = useState<'score' | 'risk' | 'time'>('time');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   const tender = TENDERS.find((t) => t.ref === tenderRef)!;
   const sealed = tender.stage === 'open';
@@ -55,21 +57,23 @@ export function BidAssessmentWorkspacePage() {
     setResultTab('all');
     setRisk('');
     setReview('');
+    setPreviewId(null);
   }
 
   const counts = (r: 'all' | Result) => allBids.filter((b) => r === 'all' || b.result === r).length;
-  const open = (b: Bid) => navigate(assessmentPath(tenderRef, b.id));
+  const openFull = (b: Bid) => navigate(assessmentPath(tenderRef, b.id));
+  const preview = allBids.find((b) => b.id === previewId) ?? null;
 
   return (
-    <OfficerPortalShell breadcrumb="Bid assessment">
+    <OfficerPortalShell breadcrumb="Bids">
       <div className="flex flex-col gap-6">
         <PageHeader
-          breadcrumbs={[{ label: 'Workspace', to: '/officer/dashboard' }, { label: 'Bid assessment' }]}
-          title="Bid assessment"
+          breadcrumbs={[{ label: 'Workspace', to: '/officer/dashboard' }, { label: 'Bids' }]}
+          title="Bids"
           description="Review bidder submissions, compliance results, and automated assessment findings."
         />
 
-        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,26fr)_minmax(0,74fr)]">
+        <div className={cn('grid grid-cols-1 items-start gap-5', preview ? 'xl:grid-cols-[minmax(0,21fr)_minmax(0,46fr)_minmax(0,33fr)]' : 'xl:grid-cols-[minmax(0,26fr)_minmax(0,74fr)]')}>
           {/* LEFT — tenders */}
           <Card padding="none" className="overflow-hidden">
             <div className="flex flex-col gap-3 border-b border-outline-variant px-4 py-4">
@@ -189,7 +193,12 @@ export function BidAssessmentWorkspacePage() {
                     </thead>
                     <tbody>
                       {bids.map((b) => (
-                        <tr key={b.id} onClick={() => open(b)} className="cursor-pointer border-b border-outline-variant/70 transition-colors hover:bg-surface-container-low">
+                        <tr
+                          key={b.id}
+                          onClick={() => setPreviewId(b.id === previewId ? null : b.id)}
+                          aria-selected={b.id === previewId}
+                          className={cn('cursor-pointer border-b border-outline-variant/70 transition-colors hover:bg-surface-container-low', b.id === previewId && 'bg-info-container/40')}
+                        >
                           <td className="whitespace-nowrap px-5 py-3 font-mono text-[13px] font-semibold text-on-surface">{b.id}</td>
                           <td className="min-w-[170px] px-3 py-3">
                             <div className="text-[14px] font-semibold text-on-surface">{b.company}</div>
@@ -216,7 +225,7 @@ export function BidAssessmentWorkspacePage() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                open(b);
+                                openFull(b);
                               }}
                               className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-semibold text-secondary hover:underline"
                             >
@@ -239,6 +248,70 @@ export function BidAssessmentWorkspacePage() {
               </>
             )}
           </Card>
+
+          {/* RIGHT — preview of the selected bid */}
+          {preview && (
+            <Card padding="none" className="overflow-hidden xl:sticky xl:top-24">
+              <div className="flex items-start justify-between gap-3 border-b border-outline-variant px-5 py-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[13px] font-semibold text-on-surface">{preview.id}</span>
+                    <ResultBadge r={preview.result} />
+                  </div>
+                  <h3 className="mt-0.5 truncate text-headline-sm font-semibold text-on-surface">{preview.company}</h3>
+                </div>
+                <IconButton icon="close" aria-label="Close preview" onClick={() => setPreviewId(null)} />
+              </div>
+
+              <dl className="grid grid-cols-2 gap-3 border-b border-outline-variant px-5 py-4">
+                <div>
+                  <dt className="text-[12px] text-on-surface-variant">Compliance</dt>
+                  <dd className="num text-[16px] font-semibold text-on-surface">{preview.score} / 100</dd>
+                </div>
+                <div>
+                  <dt className="text-[12px] text-on-surface-variant">Risk</dt>
+                  <dd className="mt-0.5">
+                    <RiskBadge r={preview.risk} />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[12px] text-on-surface-variant">Requirements</dt>
+                  <dd className="num text-[16px] font-semibold text-on-surface">{preview.passed} / 14</dd>
+                </div>
+                <div>
+                  <dt className="text-[12px] text-on-surface-variant">Needs review</dt>
+                  <dd className={cn('num text-[16px] font-semibold', preview.needsReview ? 'text-warning-on-container' : 'text-on-surface')}>{preview.needsReview}</dd>
+                </div>
+              </dl>
+
+              <div className="border-b border-outline-variant px-5 py-4">
+                <div className="mb-1.5 text-[13px] font-semibold text-on-surface">Submission</div>
+                <div className="text-body-sm text-on-surface-variant">Submitted {preview.submitted}</div>
+                <div className="mt-1 inline-flex items-center gap-1.5 text-body-sm text-on-surface-variant">
+                  {preview.review === 'reviewed' ? (
+                    <>
+                      <Icon name="task_alt" size="xs" className="text-success" /> Officer reviewed
+                    </>
+                  ) : preview.review === 'attention' ? (
+                    <>
+                      <Icon name="flag" size="xs" className="text-warning" /> Needs officer attention
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="schedule" size="xs" /> Ready for review
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-5 py-4">
+                <Button fullWidth rightIcon="arrow_forward" onClick={() => openFull(preview)}>
+                  Open full assessment
+                </Button>
+                <p className="mt-2 text-[12px] text-on-surface-variant">Full evidence, verification and the officer decision are recorded on the assessment page.</p>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </OfficerPortalShell>

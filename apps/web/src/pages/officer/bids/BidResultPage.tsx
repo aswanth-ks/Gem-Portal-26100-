@@ -167,7 +167,7 @@ export function BidResultPage() {
   const { ref: slug, bidId } = useParams();
   const tender = TENDERS.find((t) => t.ref === slugToRef(slug ?? ''));
   const bid = tender && tender.stage !== 'open' ? (BIDS[tender.ref] ?? []).find((b) => b.id === bidId) : undefined;
-  const listPath = `/officer/assessment${tender ? `?tender=${refToSlug(tender.ref)}` : ''}`;
+  const listPath = `/officer/bids${tender ? `?tender=${refToSlug(tender.ref)}` : ''}`;
 
   if (!tender || !bid) {
     return (
@@ -261,7 +261,7 @@ function BidResult({ tenderTitle, tenderRef, stageLabel, bid, listPath }: { tend
 
   const passed = reqs.filter((r) => r.result === 'pass').length;
   const needsReview = reqs.filter((r) => r.needsReview).length;
-  const hasConflict = bid.id === 'BID-002';
+  const hasConflict = tenderRef === 'CPCL/PROC/2026/041' && bid.id === 'BID-002';
   const isReview = (r: Req) => r.needsReview || r.result === 'review';
   const counts = { all: reqs.length, pass: passed, fail: reqs.filter((r) => r.result === 'fail').length, review: reqs.filter(isReview).length };
   const visible = reqs.filter((r) => filter === 'all' || (filter === 'review' ? isReview(r) : r.result === filter));
@@ -347,7 +347,7 @@ function BidResult({ tenderTitle, tenderRef, stageLabel, bid, listPath }: { tend
             Back to bids
           </Button>
           <PageHeader
-            breadcrumbs={[{ label: 'Bid assessment', to: listPath }, { label: tenderRef, to: listPath }, { label: bid.id }]}
+            breadcrumbs={[{ label: 'Bids', to: listPath }, { label: tenderRef, to: listPath }, { label: bid.id }]}
             eyebrow={
               <>
                 <StatusBadge tone="warning">{stageLabel}</StatusBadge>

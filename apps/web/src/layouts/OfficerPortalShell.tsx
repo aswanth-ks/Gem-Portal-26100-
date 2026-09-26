@@ -22,14 +22,13 @@ const OFFICER_CONFIG: PortalConfig = {
         { id: 'dashboard', icon: 'grid_view', label: 'Dashboard', to: '/officer/dashboard' },
         { id: 'tenders', icon: 'assignment', label: 'Tenders', to: '/officer/tenders' },
         { id: 'bids', icon: 'gavel', label: 'Bids', to: '/officer/bids' },
-        { id: 'assessment', icon: 'rule_folder', label: 'Bid assessment', to: '/officer/assessment' },
-        { id: 'reviews', icon: 'fact_check', label: 'Reviews', badge: '3' },
+        { id: 'reviews', icon: 'fact_check', label: 'Reviews', to: '/officer/reviews', badge: '3' },
       ],
     },
     {
       label: 'Compliance',
       items: [
-        { id: 'verification', icon: 'verified_user', label: 'Verification' },
+        { id: 'verification', icon: 'verified_user', label: 'Verification', to: '/officer/verification' },
         { id: 'audit', icon: 'history_edu', label: 'Audit Trail', to: '/officer/audit' },
         { id: 'reports', icon: 'insights', label: 'Reports' },
       ],

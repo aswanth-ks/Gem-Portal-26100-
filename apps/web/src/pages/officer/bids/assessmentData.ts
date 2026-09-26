@@ -90,4 +90,4 @@ export const BIDS: Record<string, Bid[]> = {
 
 export const refToSlug = (ref: string) => ref.replace(/\//g, '-');
 export const slugToRef = (slug: string) => slug.replace(/-/g, '/');
-export const assessmentPath = (ref: string, bidId: string) => `/officer/assessment/${refToSlug(ref)}/${bidId}`;
+export const assessmentPath = (ref: string, bidId: string) => `/officer/bids/${refToSlug(ref)}/${bidId}`;
