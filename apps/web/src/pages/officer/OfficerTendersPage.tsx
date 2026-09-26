@@ -7,7 +7,7 @@
 // tender" modal and the "Workflow preview" modal are React state.
 //
 // TODO: GET /api/officer/tenders + POST draft creation once the gateway
-// exposes them; route "Proceed to Tender Information" to screen O04.
+// exposes them; "Proceed" routes to O04 (/officer/tenders/new).
 
 import { useMemo, useState } from 'react';
 import { OfficerPortalShell } from '@/layouts/OfficerPortalShell';
@@ -294,7 +294,7 @@ export function OfficerTendersPage() {
             <Button variant="secondary" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
-            <Button rightIcon="arrow_forward" onClick={() => setCreateOpen(false)}>
+            <Button rightIcon="arrow_forward" to="/officer/tenders/new">
               Proceed to tender information
             </Button>
           </>

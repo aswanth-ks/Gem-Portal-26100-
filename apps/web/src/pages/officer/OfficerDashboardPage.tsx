@@ -178,7 +178,7 @@ export function OfficerDashboardPage() {
               <Button variant="secondary" leftIcon="download">
                 Export summary
               </Button>
-              <Button leftIcon="add" to="/officer/tenders">Create tender</Button>
+              <Button leftIcon="add" to="/officer/tenders/new">Create tender</Button>
             </>
           }
         />
