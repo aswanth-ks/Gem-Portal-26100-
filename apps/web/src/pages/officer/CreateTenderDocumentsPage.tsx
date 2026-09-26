@@ -9,7 +9,8 @@
 // sample packet are React state; file selection is local only.
 //
 // TODO: POST /api/officer/tenders/drafts/:ref/documents (multipart + DSC seal)
-// and route "Continue" to Step 3 once it exists.
+// "Continue" opens the requirement-setup choice (AI-assisted or manual),
+// both leading to O07 Bidder Requirements.
 
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -36,6 +37,7 @@ import {
 } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 import { CREATE_TENDER_ROUTES, CREATE_TENDER_STEPS, DRAFT_REF } from './createTender';
+import { RequirementSetupModal } from './RequirementSetupModal';
 
 type DocState = 'ready' | 'action-required';
 
@@ -155,6 +157,7 @@ export function CreateTenderDocumentsPage() {
   const [replaceDoc, setReplaceDoc] = useState<TenderDoc | null>(null);
   const [removeDoc, setRemoveDoc] = useState<TenderDoc | null>(null);
   const [inspectDoc, setInspectDoc] = useState<TenderDoc | null>(null);
+  const [setupOpen, setSetupOpen] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setSavedAgo((s) => s + 10), 10_000);
@@ -445,8 +448,8 @@ export function CreateTenderDocumentsPage() {
           </span>
         }
         right={
-          <Button rightIcon="arrow_forward" disabled={!canContinue} onClick={() => setToast('Documents committed. Step 3 · AI extraction is next.')}>
-            Continue to AI extraction
+          <Button rightIcon="arrow_forward" disabled={!canContinue} onClick={() => setSetupOpen(true)}>
+            Continue to requirement setup
           </Button>
         }
       />
@@ -616,7 +619,7 @@ export function CreateTenderDocumentsPage() {
             <div>
               <div className="mb-2 text-[13px] font-semibold text-on-surface">Content preview</div>
               <div className="rounded-card border border-outline-variant bg-surface-container-lowest p-4 font-mono text-[12px] leading-relaxed text-on-surface-variant">
-                {(inspectDoc.preview ?? [`[${inspectDoc.file}]`, 'Preview is generated after AI extraction (Step 3).']).map((l) => (
+                {(inspectDoc.preview ?? [`[${inspectDoc.file}]`, 'Full preview is available after requirement setup (Step 3).']).map((l) => (
                   <p key={l}>{l}</p>
                 ))}
               </div>
@@ -624,6 +627,8 @@ export function CreateTenderDocumentsPage() {
           </div>
         )}
       </Modal>
+
+      <RequirementSetupModal open={setupOpen} onClose={() => setSetupOpen(false)} documentCount={ready} />
 
       {toast && <Toast message={toast} />}
     </OfficerPortalShell>

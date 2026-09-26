@@ -8,7 +8,7 @@ export const DRAFT_REF = 'TND-DRAFT-2026-0047';
 export const CREATE_TENDER_STEPS: StepItem[] = [
   { label: 'Tender information' },
   { label: 'Tender documents' },
-  { label: 'AI extraction' },
+  { label: 'Bidder requirements' },
   { label: 'Rules & compliance' },
   { label: 'Review & publish' },
 ];
@@ -16,4 +16,5 @@ export const CREATE_TENDER_STEPS: StepItem[] = [
 export const CREATE_TENDER_ROUTES = {
   info: '/officer/tenders/new',
   documents: '/officer/tenders/new/documents',
+  requirements: '/officer/tenders/new/requirements',
 } as const;
