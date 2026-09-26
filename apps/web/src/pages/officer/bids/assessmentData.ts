@@ -1,7 +1,14 @@
 // Mock data shared by the Bid assessment list (tenders + bids) and the
 // per-bid assessment page. Open tenders have no bidder-level data.
 //
+// The submission deadline (deadlineISO) is the source of truth for a
+// tender's stage — see tenderLifecycle.ts. `underEvaluation` is the only
+// thing an officer sets directly, and only applies once the vault is
+// already open (it can never re-seal a tender or override the deadline).
+//
 // TODO: replace with GET /api/officer/bids?tender=… and /assessment.
+
+import { isSealed, formatDeadline } from '@/pages/officer/tenderLifecycle';
 
 export type Stage = 'open' | 'closed' | 'evaluation';
 
@@ -11,14 +18,37 @@ export interface Tender {
   bids: number;
   stage: Stage;
   deadline: string;
+  deadlineISO: string;
 }
 
-export const TENDERS: Tender[] = [
-  { ref: 'CPCL/PROC/2026/041', title: 'Supply of CCTV Cameras for Public Safety Infrastructure', bids: 8, stage: 'closed', deadline: '04 Oct 2026, 17:00' },
-  { ref: 'CPCL/PROC/2026/039', title: 'Industrial Network Security Equipment', bids: 5, stage: 'closed', deadline: '02 Oct 2026, 15:00' },
-  { ref: 'CPCL/PROC/2026/037', title: 'Control Room Display Systems', bids: 6, stage: 'open', deadline: '12 Oct 2026, 12:00' },
-  { ref: 'CPCL/PROC/2026/035', title: 'Industrial Safety Monitoring & Gas Detection Sensor Array', bids: 4, stage: 'evaluation', deadline: '22 Sep 2026, 17:00' },
+interface RawTender {
+  ref: string;
+  title: string;
+  bids: number;
+  deadlineISO: string;
+  underEvaluation?: boolean;
+}
+
+const RAW_TENDERS: RawTender[] = [
+  { ref: 'CPCL/PROC/2026/041', title: 'Supply of CCTV Cameras for Public Safety Infrastructure', bids: 8, deadlineISO: '2026-10-04T17:00' },
+  { ref: 'CPCL/PROC/2026/039', title: 'Industrial Network Security Equipment', bids: 5, deadlineISO: '2026-10-02T15:00' },
+  { ref: 'CPCL/PROC/2026/037', title: 'Control Room Display Systems', bids: 6, deadlineISO: '2026-10-12T12:00' },
+  { ref: 'CPCL/PROC/2026/035', title: 'Industrial Safety Monitoring & Gas Detection Sensor Array', bids: 4, deadlineISO: '2026-09-22T17:00', underEvaluation: true },
 ];
+
+function deriveStage(t: RawTender): Stage {
+  if (isSealed(t.deadlineISO)) return 'open';
+  return t.underEvaluation ? 'evaluation' : 'closed';
+}
+
+export const TENDERS: Tender[] = RAW_TENDERS.map((t) => ({
+  ref: t.ref,
+  title: t.title,
+  bids: t.bids,
+  deadlineISO: t.deadlineISO,
+  deadline: formatDeadline(t.deadlineISO),
+  stage: deriveStage(t),
+}));
 
 export const STAGE: Record<Stage, { label: string; tone: 'info' | 'warning' | 'neutral' }> = {
   open: { label: 'Submission open', tone: 'info' },

@@ -11,6 +11,7 @@
 
 import { useMemo, useState } from 'react';
 import { OfficerPortalShell } from '@/layouts/OfficerPortalShell';
+import { refToSlug } from '@/pages/officer/bids/assessmentData';
 import {
   Button,
   Callout,
@@ -80,14 +81,16 @@ interface TenderRow {
   cta: string;
   ctaIcon: string;
   primary?: boolean;
+  /** Present only for tenders wired into the Bids workspace lifecycle (see tenderLifecycle.ts) — routes to the locked Tender View page instead of the legacy stage-based action below. */
+  deadlineISO?: string;
 }
 
 const TENDERS: TenderRow[] = [
-  { title: 'Supply of CCTV Cameras for Public Safety Infrastructure', category: 'Surveillance & IT', unit: 'Refinery Unit-I Security Wing', ref: 'CPCL/PROC/2026/041', nature: 'Open national · 2-envelope', stage: 'open', bids: '8 bids recorded', bidNote: 'Sealed in vault', bidIcon: 'lock', deadline: '04 Oct 2026, 17:00', deadlineNote: 'Closing in 48h', urgent: true, updated: '1h ago', actor: 'Arun Kumar (Officer)', cta: 'Manage', ctaIcon: 'arrow_forward', primary: true },
-  { title: 'Industrial Network Security Equipment', category: 'Telecom & networks', unit: 'Central OT Security Cell', ref: 'CPCL/PROC/2026/039', nature: 'Limited EOI · single stage', stage: 'open', bids: '5 bids recorded', bidNote: 'Sealed in vault', bidIcon: 'lock', deadline: '08 Oct 2026, 15:00', deadlineNote: 'Window active (12 days)', updated: 'Today', actor: 'System HSM gateway', cta: 'Manage', ctaIcon: 'arrow_forward' },
+  { title: 'Supply of CCTV Cameras for Public Safety Infrastructure', category: 'Surveillance & IT', unit: 'Refinery Unit-I Security Wing', ref: 'CPCL/PROC/2026/041', nature: 'Open national · 2-envelope', stage: 'closed', bids: '8 bids recorded', bidNote: 'Vault open · deadline passed', bidIcon: 'lock_open', deadline: '04 Oct 2026, 17:00', deadlineNote: 'Submission closed', updated: '1h ago', actor: 'Arun Kumar (Officer)', cta: 'View', ctaIcon: 'arrow_forward', primary: true, deadlineISO: '2026-10-04T17:00' },
+  { title: 'Industrial Network Security Equipment', category: 'Telecom & networks', unit: 'Central OT Security Cell', ref: 'CPCL/PROC/2026/039', nature: 'Limited EOI · single stage', stage: 'closed', bids: '5 bids recorded', bidNote: 'Vault open · deadline passed', bidIcon: 'lock_open', deadline: '02 Oct 2026, 15:00', deadlineNote: 'Submission closed', updated: 'Today', actor: 'System HSM gateway', cta: 'View', ctaIcon: 'arrow_forward', deadlineISO: '2026-10-02T15:00' },
   { title: 'Industrial Safety Equipment Procurement (Turnkey Delivery)', category: 'Plant safety / turnkey', unit: 'HSE Directorate Manali', ref: 'CPCL/PROC/2026/044', nature: 'Open tender · turnkey EPC', stage: 'review', bids: '—', bidNote: 'Not accepting bids', deadline: 'Pending gazette pub.', deadlineNote: 'Review by CVO required', updated: '3h ago', actor: 'CVO Office Manali', cta: 'Review specs', ctaIcon: 'visibility' },
   { title: 'Control Room Display Systems & Video Wall Matrix', category: 'Instrumentation', unit: 'Refinery-II Central DCS', ref: 'CPCL/PROC/2026/037', nature: 'National competitive (NCB)', stage: 'draft', bids: '—', bidNote: 'Not published', deadline: 'Target 12 Oct 2026', deadlineNote: 'Section 3 of 5 complete', updated: 'Yesterday', actor: 'Arun Kumar (Officer)', cta: 'Continue draft', ctaIcon: 'edit_note' },
-  { title: 'Industrial Safety Monitoring & Gas Detection Sensor Array', category: 'Refinery safety', unit: 'Crude Distillation Unit (CDU)', ref: 'CPCL/PROC/2026/035', nature: 'Global tender · ICB', stage: 'open', bids: '6 bids recorded', bidNote: 'Sealed in vault', bidIcon: 'lock', deadline: '02 Oct 2026, 17:00', deadlineNote: 'Closing in 3h', urgent: true, updated: '2h ago', actor: 'System HSM gateway', cta: 'Manage', ctaIcon: 'arrow_forward', primary: true },
+  { title: 'Industrial Safety Monitoring & Gas Detection Sensor Array', category: 'Refinery safety', unit: 'Crude Distillation Unit (CDU)', ref: 'CPCL/PROC/2026/035', nature: 'Global tender · ICB', stage: 'evaluation', bids: '4 bids recorded', bidNote: 'Vault open · committee evaluation', bidIcon: 'balance', deadline: '22 Sep 2026, 17:00', deadlineNote: 'Submission closed', updated: '2h ago', actor: 'System HSM gateway', cta: 'View', ctaIcon: 'arrow_forward', primary: true, deadlineISO: '2026-09-22T17:00' },
   { title: 'AMC Heavy-Duty Gas Turbine Generators (Frame 6B)', category: 'Rotary maintenance', unit: 'Captive Power Plant (CPP)', ref: 'CPCL/PROC/2026/033', nature: 'OEM proprietary (PAC)', stage: 'evaluation', bids: '7 bids unsealed', bidNote: 'Committee evaluation', bidIcon: 'gavel', deadline: 'Window closed', deadlineNote: 'Opened 30 Sep, 10:00', updated: '4h ago', actor: 'TEC committee chair', cta: 'Review bids', ctaIcon: 'balance' },
   { title: 'Revamping ETP Instrumentation & Online Analyzer Systems', category: 'Environmental engg', unit: 'Effluent Treatment Plant', ref: 'CPCL/PROC/2026/030', nature: 'Open national · 2-envelope', stage: 'completed', bids: '12 bids processed', bidNote: 'L1 award dispatched', bidIcon: 'verified', deadline: 'Concluded', deadlineNote: 'PO issued 18 Sep 2026', updated: '18 Sep 2026', actor: 'SAP ERP sync verified', cta: 'View record', ctaIcon: 'description' },
   { title: 'Supply of High-Pressure Seamless Alloy Piping Spools', category: 'Piping & metallurgy', unit: 'Manali Expansion Project', ref: 'TND-DRAFT-2026-0047', nature: 'Unallocated route', stage: 'draft', bids: '—', bidNote: 'Not published', deadline: 'Created today', deadlineNote: 'Section 1 of 5 (info)', updated: '25m ago', actor: 'Arun Kumar (Officer)', cta: 'Continue draft', ctaIcon: 'edit_note' },
@@ -228,7 +231,15 @@ export function OfficerTendersPage() {
                         variant={t.primary ? 'primary' : 'secondary'}
                         leftIcon={t.ctaIcon === 'arrow_forward' ? undefined : t.ctaIcon}
                         rightIcon={t.ctaIcon === 'arrow_forward' ? 'arrow_forward' : undefined}
-                        to={t.stage === 'draft' ? '/officer/tenders/new' : t.stage === 'open' || t.stage === 'evaluation' ? '/officer/bids' : undefined}
+                        to={
+                          t.deadlineISO
+                            ? `/officer/tenders/${refToSlug(t.ref)}`
+                            : t.stage === 'draft'
+                              ? '/officer/tenders/new'
+                              : t.stage === 'open' || t.stage === 'evaluation'
+                                ? '/officer/bids'
+                                : undefined
+                        }
                       >
                         {t.cta}
                       </Button>

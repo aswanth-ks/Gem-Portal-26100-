@@ -10,6 +10,7 @@ import { OfficerLoginPage } from '@/pages/auth/OfficerLoginPage';
 import { LogoutPage } from '@/pages/auth/LogoutPage';
 import { OfficerDashboardPage } from '@/pages/officer/OfficerDashboardPage';
 import { OfficerTendersPage } from '@/pages/officer/OfficerTendersPage';
+import { TenderViewPage } from '@/pages/officer/tenders/TenderViewPage';
 import { CreateTenderInfoPage } from '@/pages/officer/CreateTenderInfoPage';
 import { CreateTenderDocumentsPage } from '@/pages/officer/CreateTenderDocumentsPage';
 import { CreateTenderRequirementsPage } from '@/pages/officer/CreateTenderRequirementsPage';
@@ -45,6 +46,7 @@ export function AppRouter() {
           <Route path="/officer/tenders/new/requirements" element={<CreateTenderRequirementsPage />} />
           <Route path="/officer/tenders/new/rules" element={<CreateTenderRulesPage />} />
           <Route path="/officer/tenders/new/review" element={<CreateTenderReviewPage />} />
+          <Route path="/officer/tenders/:slug" element={<TenderViewPage />} />
           <Route path="/officer/bids" element={<BidAssessmentWorkspacePage />} />
           <Route path="/officer/bids/:ref/:bidId" element={<BidResultPage />} />
           {/* Older URL family kept working — same components, one workspace. */}

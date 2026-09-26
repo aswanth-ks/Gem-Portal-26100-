@@ -102,10 +102,17 @@ export function CreateTenderReviewPage() {
               <Button variant="secondary" to="/officer/dashboard">
                 Go to dashboard
               </Button>
-              <Button rightIcon="arrow_forward" to="/officer/tenders">
+              <Button variant="secondary" to="/officer/tenders">
                 View in tenders
               </Button>
+              <Button rightIcon="arrow_forward" to="/officer/tenders/CPCL-PROC-2026-041">
+                View published tender
+              </Button>
             </div>
+            <p className="flex items-center gap-1.5 pt-1 text-[12px] text-on-surface-variant">
+              <Icon name="lock" size="xs" />
+              This tender is now permanently locked. Its scope and schedule cannot be edited.
+            </p>
           </Card>
         </div>
       </OfficerPortalShell>
