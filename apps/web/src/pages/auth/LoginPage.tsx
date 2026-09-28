@@ -1,27 +1,20 @@
 // Bidder Login — ported from Stitch screen "CPCL e-Procurement Portal -
 // Bidder Login" (project 6921642772921774119, screen
-// eebc689107a04f70899f1b4b11c3f406) and aligned with the shared design
-// system. Keeps the public government chrome and the 5 demo UI states
-// (normal / invalid credentials / bad captcha / locked / success).
+// eebc689107a04f70899f1b4b11c3f406), same design system and layout as
+// before. Now backed by a real POST /api/auth/login via AuthContext instead
+// of a demo state switcher.
 //
-// TODO: replace the demo state switcher and mock submit with POST
-// /api/auth/login via features/auth/api; redirect on the real response.
+// The CAPTCHA field is kept for visual/UX parity with the original design
+// but is NOT a real security control — the gateway does not verify it. It
+// is cosmetic until a real CAPTCHA service is wired in.
 
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Breadcrumbs, Button, Callout, Card, Field, Icon, IconButton, Input, StatusBadge, Tabs } from '@/components/primitives';
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Breadcrumbs, Button, Callout, Card, Field, Icon, IconButton, Input, StatusBadge } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 import { PublicFooter, PublicHeader } from '@/pages/home/PublicChrome';
-
-type LoginState = 'default' | 'invalid-cred' | 'invalid-captcha' | 'locked' | 'success';
-
-const STATE_BUTTONS: { id: LoginState; label: string }[] = [
-  { id: 'default', label: 'Normal' },
-  { id: 'invalid-cred', label: 'Invalid creds' },
-  { id: 'invalid-captcha', label: 'Bad captcha' },
-  { id: 'locked', label: 'Locked' },
-  { id: 'success', label: 'Success' },
-];
+import { useAuth } from '@/context/AuthContext';
+import { ApiError } from '@/lib/api';
 
 const REQUIREMENTS = [
   ['Operating system', 'Windows 10/11 or Ubuntu 20.04+'],
@@ -30,17 +23,32 @@ const REQUIREMENTS = [
 ];
 
 export function LoginPage() {
-  const [state, setState] = useState<LoginState>('default');
-  const [showPassword, setShowPassword] = useState(false);
-  const formDisabled = state === 'locked' || state === 'success';
+  const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [email, setEmail] = useState('demo.bidder@example.com');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
 
-  // Mirrors the Stitch success state's "Redirecting to Bidder Dashboard…".
-  useEffect(() => {
-    if (state !== 'success') return;
-    const timer = setTimeout(() => navigate('/dashboard'), 1500);
-    return () => clearTimeout(timer);
-  }, [state, navigate]);
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await login(email, password);
+      setSuccess(true);
+      const dest = (location.state as { from?: Location })?.from?.pathname ?? '/dashboard';
+      setTimeout(() => navigate(dest, { replace: true }), 900);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not reach the server. Please try again.');
+      setSubmitting(false);
+    }
+  }
+
+  const formDisabled = submitting || success;
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-clip bg-background text-on-surface">
@@ -48,19 +56,10 @@ export function LoginPage() {
 
       <main id="main-content" className="mx-auto w-full max-w-page flex-1 px-4 py-10 sm:px-6 lg:px-10 lg:py-14">
         <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex flex-col gap-3">
-              <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Bidder services' }, { label: 'Bidder login' }]} />
-              <h1 className="text-headline-xl-mobile sm:text-page-title text-on-surface">Sign in to the bidder portal</h1>
-              <p className="max-w-2xl text-body-lg text-on-surface-variant">Access your bidder account, participate in active tenders and monitor your sealed submissions.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 rounded-card border border-dashed border-outline-variant bg-surface-container-lowest/60 px-3 py-2">
-              <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-on-surface-variant">
-                <Icon name="science" size="sm" className="text-outline" />
-                Preview state
-              </span>
-              <Tabs variant="pills" ariaLabel="Login preview state" value={state} onChange={setState} items={STATE_BUTTONS} />
-            </div>
+          <div className="flex flex-col gap-3">
+            <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Bidder services' }, { label: 'Bidder login' }]} />
+            <h1 className="text-headline-xl-mobile sm:text-page-title text-on-surface">Sign in to the bidder portal</h1>
+            <p className="max-w-2xl text-body-lg text-on-surface-variant">Access your bidder account, participate in active tenders and monitor your sealed submissions.</p>
           </div>
 
           <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
@@ -80,54 +79,28 @@ export function LoginPage() {
               </div>
 
               <div className="flex flex-col gap-6 p-6 sm:p-8">
-                {state === 'default' && (
+                {!error && !success && (
                   <Callout tone="info" title="Authorized bidder access only">
                     Enter your registered login ID and password. Fields marked <span className="font-semibold text-danger">*</span> are mandatory.
                   </Callout>
                 )}
-                {state === 'invalid-cred' && (
+                {error && (
                   <Callout tone="danger" title="Login failed">
-                    Invalid login ID or password. Please check your credentials and try again. <span className="mt-1 block font-mono text-[12px]">Attempts remaining before temporary lockout: 2 of 3</span>
+                    {error}
                   </Callout>
                 )}
-                {state === 'invalid-captcha' && (
-                  <Callout tone="warning" title="Security verification failed">
-                    Please re-enter the CAPTCHA shown. Verification is case-sensitive.
-                  </Callout>
-                )}
-                {state === 'locked' && (
-                  <Callout tone="danger" icon="lock" title="Account temporarily locked">
-                    Access is restricted after multiple failed attempts. Lockout lasts <strong>30 minutes</strong>. For urgent unlock, contact the nodal desk at <strong>eproc-support@cpcl.co.in</strong>.
-                  </Callout>
-                )}
-                {state === 'success' && (
-                  <Callout
-                    tone="success"
-                    title="Authentication successful"
-                    actions={
-                      <Button size="sm" variant="secondary" rightIcon="arrow_forward" onClick={() => navigate('/dashboard')}>
-                        Proceed
-                      </Button>
-                    }
-                  >
+                {success && (
+                  <Callout tone="success" title="Authentication successful">
                     <span className="inline-flex items-center gap-2">
                       <Icon name="progress_activity" size="sm" spin />
                       Redirecting to your bidder dashboard…
                     </span>
-                    <span className="mt-1 block font-mono text-[12px]">Session CPCL_SEC_78942A</span>
                   </Callout>
                 )}
 
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    setState('success');
-                  }}
-                  className={cn('flex flex-col gap-5 transition-opacity', formDisabled && 'pointer-events-none opacity-50')}
-                  aria-disabled={formDisabled}
-                >
-                  <Field label="Login ID" htmlFor="login-id" required helper="Registered email ID or user ID" error={state === 'invalid-cred' ? 'Check your login ID' : undefined}>
-                    <Input id="login-id" name="login-id" required placeholder="Enter login ID" defaultValue="techsol_infra@biddercorp.in" leftIcon="person" state={state === 'invalid-cred' ? 'error' : 'default'} autoComplete="username" />
+                <form onSubmit={handleSubmit} className={cn('flex flex-col gap-5 transition-opacity', formDisabled && 'pointer-events-none opacity-50')} aria-disabled={formDisabled}>
+                  <Field label="Login ID" htmlFor="login-id" required helper="Registered email ID" error={error ? 'Check your login ID' : undefined}>
+                    <Input id="login-id" name="login-id" type="email" required placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} leftIcon="person" state={error ? 'error' : 'default'} autoComplete="username" />
                   </Field>
 
                   <Field
@@ -139,7 +112,7 @@ export function LoginPage() {
                         Forgot password?
                       </a>
                     }
-                    error={state === 'invalid-cred' ? 'Password is case-sensitive' : undefined}
+                    error={error ? 'Password is case-sensitive' : undefined}
                   >
                     <Input
                       id="password-input"
@@ -147,15 +120,16 @@ export function LoginPage() {
                       type={showPassword ? 'text' : 'password'}
                       required
                       placeholder="Enter password"
-                      defaultValue="SecurePass@2026"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       leftIcon="key"
                       autoComplete="current-password"
-                      state={state === 'invalid-cred' ? 'error' : 'default'}
+                      state={error ? 'error' : 'default'}
                       rightSlot={<IconButton size="sm" icon={showPassword ? 'visibility_off' : 'visibility'} aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((v) => !v)} />}
                     />
                   </Field>
 
-                  <Field label="Security verification" htmlFor="captcha-input" required helper="Case-sensitive image verification" error={state === 'invalid-captcha' ? 'CAPTCHA did not match' : undefined}>
+                  <Field label="Security verification" htmlFor="captcha-input" required helper="Case-sensitive image verification (demo — not enforced yet)">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                       <div className="flex items-center gap-2">
                         <div className="captcha-noise relative flex h-11 select-none items-center justify-center rounded-control border border-outline-variant bg-info-container px-5" aria-label="CAPTCHA image">
@@ -167,12 +141,12 @@ export function LoginPage() {
                         <IconButton variant="secondary" icon="volume_up" aria-label="Audio CAPTCHA" />
                       </div>
                       <div className="flex-1">
-                        <Input id="captcha-input" required placeholder="Enter CAPTCHA" defaultValue="X7P4QK" maxLength={6} className="font-mono uppercase tracking-[0.2em]" state={state === 'invalid-captcha' ? 'error' : 'default'} />
+                        <Input id="captcha-input" required placeholder="Enter CAPTCHA" defaultValue="X7P4QK" maxLength={6} className="font-mono uppercase tracking-[0.2em]" />
                       </div>
                     </div>
                   </Field>
 
-                  <Button type="submit" size="lg" variant="brand" fullWidth leftIcon="login" loading={state === 'success'}>
+                  <Button type="submit" size="lg" variant="brand" fullWidth leftIcon="login" loading={submitting || success}>
                     Sign in
                   </Button>
 
@@ -180,7 +154,7 @@ export function LoginPage() {
                     <Button variant="link" size="sm" leftIcon="lock_open">
                       Generate / reset password
                     </Button>
-                    <Button variant="link" size="sm" leftIcon="person_add">
+                    <Button variant="link" size="sm" leftIcon="person_add" to="/register">
                       Online bidder enrollment
                     </Button>
                     <Button variant="link" size="sm" leftIcon="help">
@@ -213,10 +187,10 @@ export function LoginPage() {
                     <>Enter your registered <strong>login ID and password</strong> exactly — passwords are case-sensitive.</>,
                     <>
                       First-time bidders should complete{' '}
-                      <a href="#" className="font-semibold text-secondary hover:underline">
+                      <Link to="/register" className="font-semibold text-secondary hover:underline">
                         online bidder enrollment
-                      </a>{' '}
-                      to map their Class-3 DSC token.
+                      </Link>{' '}
+                      to create an account.
                     </>,
                     <>Keep your registered email and mobile handy for <strong>account recovery</strong> and SMS OTP.</>,
                   ].map((body, i) => (

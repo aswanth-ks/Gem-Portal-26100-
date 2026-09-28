@@ -7,6 +7,9 @@ npm-debug.log*
 .env
 .env.local
 
+# Gateway private file storage (bid documents — never committed)
+apps/gateway/uploads/
+
 # Python
 __pycache__/
 *.pyc

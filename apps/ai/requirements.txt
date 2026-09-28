@@ -16,6 +16,14 @@ python-dotenv
 # pytesseract
 # layoutlm  # via transformers
 
+# Phase 3A — tender requirement extraction
+pypdf            # PDF text extraction, page-aware
+httpx            # calls the local Ollama HTTP API (never the ollama CLI)
+python-multipart # required by FastAPI to accept the gateway's file upload
+
+# Phase 4.5 — Gemini primary provider (official unified Google Gen AI SDK)
+google-genai
+
 # Dev
 pytest
-httpx
+pytest-asyncio

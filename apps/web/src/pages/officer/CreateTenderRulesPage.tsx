@@ -1,204 +1,119 @@
-// Procurement Officer — Create Tender, Step 4: Technical & Financial Rules
-// (O08). Step 3 (O07) defines WHAT bidders must provide; this step defines
-// HOW the compliance engine evaluates it, as simple structured conditions
-// (no formulas or code). Every rule keeps a source-document reference.
-// Rules are Active or Disabled only; AI never approves rules or decides
-// pass/fail. No bidder results are shown here — configuration only.
+// Procurement Officer — Create Tender, Step 4: Rules & Compliance. Step 3
+// defines WHAT bidders must provide; this step defines HOW the compliance
+// engine will evaluate it, as structured conditions (no formulas or code).
 //
-// Same header, stepper, cards and action bar as the other wizard steps.
-// Tabs, row menu, add/edit side drawer, view-source and remove dialogs are
-// React state.
-//
-// TODO: persist to /api/officer/tenders/drafts/:ref/rules.
+// Phase 2: real persistence via ComplianceRule, each one required to
+// reference a requirement that actually belongs to this same tender (the
+// gateway rejects cross-tender references — see officer/rules.routes.ts).
+// Phase 4: adds real AI-assisted rule proposals — POST
+// .../requirements/:id/propose-rule calls the actual apps/ai service, which
+// translates one approved requirement into a rule proposal (or says no safe
+// rule applies). Nothing is persisted until the officer accepts/edits it,
+// which goes through the exact same POST /tenders/:id/rules as a manual rule.
 
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { OfficerPortalShell } from '@/layouts/OfficerPortalShell';
 import { BidActionBar } from '@/pages/tenders/bid/BidWorkspaceChrome';
-import {
-  Button,
-  Callout,
-  Card,
-  Drawer,
-  Field,
-  Icon,
-  IconButton,
-  Input,
-  Modal,
-  PageHeader,
-  Select,
-  StatusBadge,
-  Stepper,
-  Table,
-  TBody,
-  Td,
-  Th,
-  THead,
-  Tabs,
-  Tag,
-  Toast,
-  Tr,
-} from '@/components/primitives';
-import { cn } from '@/utils/cn';
-import { CREATE_TENDER_ROUTES, CREATE_TENDER_STEPS, DRAFT_REF } from './createTender';
-import { YesNo } from './CreateTenderInfoPage';
+import { Button, Callout, Card, CardHeader, DescriptionList, Drawer, EmptyState, Field, Icon, Input, Modal, PageHeader, Select, StatusBadge, Stepper, Table, TBody, Td, Th, THead, Tag, Toast, Tr } from '@/components/primitives';
+import { CREATE_TENDER_ROUTES, CREATE_TENDER_STEPS, getDraftTenderId } from './createTender';
+import { officerApi, ApiError } from '@/lib/api';
+import type { ApiComplianceRule, ApiProposeRuleResponse, ApiRuleProposal, ApiTenderRequirement, RuleOperator, RuleType } from '@/lib/types';
 
-type Category = 'technical' | 'financial';
-type ConditionType = 'gte' | 'lte' | 'eq' | 'contains' | 'required' | 'valid_on_bid_date' | 'exists' | 'matches';
-type Evaluation = 'Automatic' | 'Rule-based';
+const RULE_TYPES: { id: RuleType; label: string }[] = [
+  { id: 'numeric_threshold', label: 'Numeric threshold' },
+  { id: 'date_validity', label: 'Date validity' },
+  { id: 'required_document', label: 'Required document' },
+  { id: 'boolean_condition', label: 'Boolean condition' },
+  { id: 'experience_threshold', label: 'Experience threshold' },
+];
+const OPERATORS: RuleOperator[] = ['>=', '<=', '>', '<', '==', '!='];
 
-interface Rule {
-  id: string;
-  name: string;
-  category: Category;
+interface FormState {
+  requirementId: string;
+  type: RuleType;
   field: string;
-  condition: ConditionType;
+  operator: RuleOperator;
   value: string;
-  unit: string;
-  mandatory: boolean;
-  sourceDoc: string;
-  sourcePage: string;
-  evaluation: Evaluation;
-  note: string;
-  active: boolean;
+}
+const BLANK: FormState = { requirementId: '', type: 'numeric_threshold', field: '', operator: '>=', value: '' };
+
+function toForm(r: ApiComplianceRule): FormState {
+  return { requirementId: r.requirementId, type: r.type, field: r.field, operator: r.operator, value: r.value === undefined || r.value === null ? '' : String(r.value) };
 }
 
-const CONDITIONS: { id: ConditionType; label: string; needsValue: boolean }[] = [
-  { id: 'gte', label: 'Greater than or equal to', needsValue: true },
-  { id: 'lte', label: 'Less than or equal to', needsValue: true },
-  { id: 'eq', label: 'Equal to', needsValue: true },
-  { id: 'contains', label: 'Contains', needsValue: true },
-  { id: 'required', label: 'Required', needsValue: false },
-  { id: 'valid_on_bid_date', label: 'Date valid on bid date', needsValue: false },
-  { id: 'exists', label: 'Exists', needsValue: false },
-  { id: 'matches', label: 'Matches specified value', needsValue: true },
-];
-
-const SOURCE_DOCS = ['Technical Specification.pdf', 'Tender Document (NIT).pdf', 'Financial Terms.xlsx'];
-
-const base = { unit: '', mandatory: true, note: '', active: true };
-const INITIAL_RULES: Rule[] = [
-  { ...base, id: 't1', name: 'Camera Resolution', category: 'technical', field: 'Resolution', condition: 'gte', value: '4K', sourceDoc: 'Technical Specification.pdf', sourcePage: 'Pg. 7', evaluation: 'Automatic' },
-  { ...base, id: 't2', name: 'Night Vision', category: 'technical', field: 'IR night vision', condition: 'required', value: '', sourceDoc: 'Technical Specification.pdf', sourcePage: 'Pg. 7', evaluation: 'Automatic' },
-  { ...base, id: 't3', name: 'Ingress Protection', category: 'technical', field: 'IP rating', condition: 'gte', value: 'IP66', sourceDoc: 'Technical Specification.pdf', sourcePage: 'Pg. 8', evaluation: 'Automatic', note: 'IP66 or higher' },
-  { ...base, id: 't4', name: 'Storage Capacity', category: 'technical', field: 'Recording retention', condition: 'gte', value: '30', unit: 'days', sourceDoc: 'Technical Specification.pdf', sourcePage: 'Pg. 8', evaluation: 'Automatic' },
-  { ...base, id: 't5', name: 'Warranty', category: 'technical', field: 'Comprehensive warranty', condition: 'gte', value: '3', unit: 'years', sourceDoc: 'Technical Specification.pdf', sourcePage: 'Pg. 9', evaluation: 'Automatic' },
-  { ...base, id: 't6', name: 'OEM Authorization', category: 'technical', field: 'OEM authorization letter', condition: 'valid_on_bid_date', value: '', sourceDoc: 'Tender Document (NIT).pdf', sourcePage: 'Pg. 20', evaluation: 'Automatic', note: 'Checked against the bid submission date, not today.' },
-  { ...base, id: 'f1', name: 'Average Annual Turnover', category: 'financial', field: 'Avg. turnover (last 3 FY)', condition: 'gte', value: '₹50', unit: 'Lakhs', sourceDoc: 'Tender Document (NIT).pdf', sourcePage: 'Pg. 18', evaluation: 'Automatic' },
-  { ...base, id: 'f2', name: 'Bid Validity', category: 'financial', field: 'Bid validity period', condition: 'matches', value: 'As specified in tender', sourceDoc: 'Tender Document (NIT).pdf', sourcePage: 'Pg. 21', evaluation: 'Rule-based' },
-  { ...base, id: 'f3', name: 'EMD', category: 'financial', field: 'Earnest money deposit', condition: 'matches', value: 'As specified in tender', sourceDoc: 'Financial Terms.xlsx', sourcePage: 'Pg. 22', evaluation: 'Rule-based' },
-];
-
-function conditionText(r: Pick<Rule, 'condition' | 'value' | 'unit'>) {
-  const v = [r.value, r.unit].filter(Boolean).join(' ');
-  switch (r.condition) {
-    case 'gte':
-      return `≥ ${v}`;
-    case 'lte':
-      return `≤ ${v}`;
-    case 'eq':
-      return `= ${v}`;
-    case 'contains':
-      return `Contains “${v}”`;
-    case 'required':
-      return 'Required';
-    case 'valid_on_bid_date':
-      return 'Valid on bid date';
-    case 'exists':
-      return 'Must exist';
-    case 'matches':
-      return v;
-  }
-}
-
-const EMPTY: Omit<Rule, 'id' | 'active'> = {
-  name: '',
-  category: 'technical',
-  field: '',
-  condition: 'gte',
-  value: '',
-  unit: '',
-  mandatory: true,
-  sourceDoc: '',
-  sourcePage: '',
-  evaluation: 'Automatic',
-  note: '',
-};
-
-/** Row "⋮" menu. Rendered fixed so the table's horizontal scroll can't clip it. */
-function RowMenu({ rule, onEdit, onSource, onToggle, onRemove }: { rule: Rule; onEdit: () => void; onSource: () => void; onToggle: () => void; onRemove: () => void }) {
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
-  const btnRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    if (!pos) return;
-    const close = () => setPos(null);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('resize', close);
-    return () => {
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('resize', close);
-    };
-  }, [pos]);
-
-  const items = [
-    { icon: 'edit', label: 'Edit', run: onEdit },
-    { icon: 'find_in_page', label: 'View source', run: onSource },
-    { icon: rule.active ? 'block' : 'check_circle', label: rule.active ? 'Disable' : 'Enable', run: onToggle },
-    { icon: 'delete', label: 'Remove', run: onRemove, danger: true },
-  ];
-
-  return (
-    <>
-      <span ref={btnRef} className="inline-flex">
-      <IconButton
-        icon="more_vert"
-        aria-label={`Actions for ${rule.name}`}
-        aria-haspopup="menu"
-        aria-expanded={!!pos}
-        onClick={() => {
-          const r = btnRef.current?.getBoundingClientRect();
-          if (r) setPos(pos ? null : { top: r.bottom + 4, right: window.innerWidth - r.right });
-        }}
-      />
-      </span>
-      {pos && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setPos(null)} />
-          <ul role="menu" style={{ top: pos.top, right: pos.right }} className="fixed z-50 w-44 rounded-card border border-outline-variant bg-surface-container-lowest py-1.5 shadow-overlay animate-scale-in">
-            {items.map((it) => (
-              <li key={it.label} role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setPos(null);
-                    it.run();
-                  }}
-                  className={cn('flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-[14px] transition-colors hover:bg-surface-container-low', it.danger ? 'text-danger' : 'text-on-surface')}
-                >
-                  <Icon name={it.icon} size="sm" className={it.danger ? 'text-danger' : 'text-on-surface-variant'} />
-                  {it.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </>
-  );
-}
+type DrawerState = { item: ApiComplianceRule; mode: 'view' | 'edit' } | { item: null; mode: 'new' } | null;
 
 export function CreateTenderRulesPage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Category>('technical');
-  const [rules, setRules] = useState<Rule[]>(INITIAL_RULES);
-  const [drawer, setDrawer] = useState<Rule | 'new' | null>(null);
-  const [form, setForm] = useState(EMPTY);
+  const tenderId = getDraftTenderId();
+
+  const [rules, setRules] = useState<ApiComplianceRule[] | null>(null);
+  const [requirements, setRequirements] = useState<ApiTenderRequirement[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [drawer, setDrawer] = useState<DrawerState>(null);
+  const [form, setForm] = useState<FormState>(BLANK);
   const [touched, setTouched] = useState(false);
-  const [sourceRule, setSourceRule] = useState<Rule | null>(null);
-  const [removeRule, setRemoveRule] = useState<Rule | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [removeRule, setRemoveRule] = useState<ApiComplianceRule | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Phase 4/10D — AI rule proposals (preview-only, keyed by requirement id).
+  const [proposals, setProposals] = useState<Record<string, ApiRuleProposal>>({});
+  const [proposing, setProposing] = useState<Set<string>>(new Set());
+  const [proposeError, setProposeError] = useState<Record<string, string>>({});
+  const [dismissedProposals, setDismissedProposals] = useState<Set<string>>(new Set());
+  const [autoGenerating, setAutoGenerating] = useState(false);
+  const autoTriggerRanFor = useRef<Set<string>>(new Set());
+
+  async function load() {
+    if (!tenderId) return;
+    try {
+      const [r, req] = await Promise.all([officerApi.get<ApiComplianceRule[]>(`/tenders/${tenderId}/rules`), officerApi.get<ApiTenderRequirement[]>(`/tenders/${tenderId}/requirements`)]);
+      setRules(r);
+      setRequirements(req);
+      return { r, req };
+    } catch (err) {
+      setLoadError(err instanceof ApiError ? err.message : 'Could not load compliance rules.');
+      return null;
+    }
+  }
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Phase 10D — the officer approving a requirement in Step 3 is the trigger
+  // for an AI rule proposal; since Step 3 and Step 4 are separate page
+  // mounts with no proposal persistence between them (proposals are
+  // preview-only, exactly like the existing manual "Propose rule with AI"
+  // button already was — see the Phase 4 comment above), the practical
+  // automatic trigger point is here: the moment Step 4 loads, generate a
+  // real proposal for every approved requirement that doesn't have a rule or
+  // a proposal yet, without the officer needing to click anything. Requests
+  // run one at a time (not in parallel) — concurrent Gemini calls were a
+  // real, previously-observed source of failures in this project.
+  useEffect(() => {
+    if (!requirements || !rules) return;
+    const pending = requirements.filter((r) => r.status === 'approved' && !rules.some((ru) => ru.requirementId === r._id) && !proposals[r._id] && !autoTriggerRanFor.current.has(r._id));
+    if (pending.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      setAutoGenerating(true);
+      for (const r of pending) {
+        if (cancelled) break;
+        autoTriggerRanFor.current.add(r._id);
+        await proposeRule(r._id);
+      }
+      if (!cancelled) setAutoGenerating(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requirements, rules]);
 
   useEffect(() => {
     if (!toast) return;
@@ -206,340 +121,456 @@ export function CreateTenderRulesPage() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  useEffect(() => {
-    if (!drawer) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setDrawer(null);
-    window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [drawer]);
+  const requirementTitle = (id: string) => requirements?.find((r) => r._id === id)?.title ?? '(unknown requirement)';
 
-  const visible = rules.filter((r) => r.category === tab);
-  const count = (c: Category) => rules.filter((r) => r.category === c).length;
-  const activeCount = rules.filter((r) => r.active).length;
-  const cond = CONDITIONS.find((c) => c.id === form.condition)!;
-
-  function openDrawer(r: Rule | 'new') {
-    setForm(r === 'new' ? { ...EMPTY, category: tab } : { ...r });
+  function openNew() {
+    setForm({ ...BLANK, requirementId: requirements?.[0]?._id ?? '' });
     setTouched(false);
-    setDrawer(r);
+    setFormError(null);
+    setDrawer({ item: null, mode: 'new' });
+  }
+  function startEdit(r: ApiComplianceRule) {
+    setForm(toForm(r));
+    setTouched(false);
+    setFormError(null);
+    setDrawer({ item: r, mode: 'edit' });
   }
 
-  const errors = touched
-    ? {
-        name: !form.name.trim() ? 'Rule name is required' : undefined,
-        field: !form.field.trim() ? 'Specify the requirement or field evaluated' : undefined,
-        value: cond.needsValue && !form.value.trim() ? 'Expected value is required for this condition' : undefined,
-        source: !form.sourceDoc ? 'Every rule needs a source document' : undefined,
-      }
-    : {};
+  const errors = touched ? { requirementId: !form.requirementId ? 'Select a requirement' : undefined, field: !form.field.trim() ? 'Field name is required' : undefined } : {};
 
-  function save() {
+  async function save() {
     setTouched(true);
-    if (!form.name.trim() || !form.field.trim() || (cond.needsValue && !form.value.trim()) || !form.sourceDoc) return;
-    const clean = { ...form, value: cond.needsValue ? form.value : '', unit: cond.needsValue ? form.unit : '' };
-    if (drawer === 'new') {
-      setRules((all) => [...all, { ...clean, id: `r-${Date.now()}`, active: true }]);
-      setToast(`Rule “${form.name}” added`);
-    } else if (drawer) {
-      setRules((all) => all.map((r) => (r.id === drawer.id ? { ...r, ...clean } : r)));
-      setToast(`Rule “${form.name}” updated`);
+    if (!form.requirementId || !form.field.trim() || !tenderId) return;
+    setSaving(true);
+    setFormError(null);
+    const numericValue = form.value !== '' && !Number.isNaN(Number(form.value)) ? Number(form.value) : form.value;
+    const payload = { requirementId: form.requirementId, type: form.type, field: form.field.trim(), operator: form.operator, value: numericValue };
+    try {
+      if (drawer?.mode === 'new') {
+        await officerApi.post(`/tenders/${tenderId}/rules`, payload);
+        setToast('Rule added');
+      } else if (drawer?.mode === 'edit') {
+        await officerApi.patch(`/rules/${drawer.item._id}`, payload);
+        setToast('Rule updated');
+      }
+      setDrawer(null);
+      await load();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : 'Could not save this rule.');
+    } finally {
+      setSaving(false);
     }
-    setTab(form.category);
-    setDrawer(null);
+  }
+
+  async function proposeRule(requirementId: string) {
+    if (!tenderId) return;
+    setProposing((prev) => new Set(prev).add(requirementId));
+    setProposeError((prev) => ({ ...prev, [requirementId]: '' }));
+    try {
+      const result = await officerApi.post<ApiProposeRuleResponse>(`/tenders/${tenderId}/requirements/${requirementId}/propose-rule`);
+      setProposals((prev) => ({ ...prev, [requirementId]: result.proposal }));
+      setDismissedProposals((prev) => {
+        const next = new Set(prev);
+        next.delete(requirementId);
+        return next;
+      });
+    } catch (err) {
+      setProposeError((prev) => ({ ...prev, [requirementId]: err instanceof ApiError ? err.message : 'AI service unavailable. A rule can still be entered manually.' }));
+    } finally {
+      setProposing((prev) => {
+        const next = new Set(prev);
+        next.delete(requirementId);
+        return next;
+      });
+    }
+  }
+
+  async function acceptProposalAsIs(requirementId: string, proposal: ApiRuleProposal) {
+    if (!tenderId || !proposal.type || !proposal.operator || !proposal.field) return;
+    setSaving(true);
+    try {
+      await officerApi.post(`/tenders/${tenderId}/rules`, {
+        requirementId,
+        type: proposal.type,
+        field: proposal.field,
+        operator: proposal.operator,
+        value: proposal.value,
+        parameters: proposal.parameters ?? {},
+      });
+      setToast('Rule accepted');
+      setProposals((prev) => {
+        const next = { ...prev };
+        delete next[requirementId];
+        return next;
+      });
+      await load();
+    } catch (err) {
+      setProposeError((prev) => ({ ...prev, [requirementId]: err instanceof ApiError ? err.message : 'Could not save this rule.' }));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function editProposal(requirementId: string, proposal: ApiRuleProposal) {
+    setForm({
+      requirementId,
+      type: (proposal.type ?? 'numeric_threshold') as RuleType,
+      field: proposal.field ?? '',
+      operator: (proposal.operator ?? '>=') as RuleOperator,
+      value: proposal.value === undefined || proposal.value === null ? '' : String(proposal.value),
+    });
+    setTouched(false);
+    setFormError(null);
+    setDrawer({ item: null, mode: 'new' });
+  }
+
+  function dismissProposal(requirementId: string) {
+    setDismissedProposals((prev) => new Set(prev).add(requirementId));
+  }
+
+  async function doRemove() {
+    if (!removeRule) return;
+    try {
+      await officerApi.delete(`/rules/${removeRule._id}`);
+      setToast('Rule removed');
+      setRemoveRule(null);
+      setDrawer(null);
+      await load();
+    } catch (err) {
+      setLoadError(err instanceof ApiError ? err.message : 'Could not remove this rule.');
+      setRemoveRule(null);
+    }
+  }
+
+  if (!tenderId) {
+    return (
+      <OfficerPortalShell breadcrumb="Create tender">
+        <Callout tone="danger" title="No draft tender in progress">
+          Start from Step 1 (Tender information) first.
+        </Callout>
+      </OfficerPortalShell>
+    );
+  }
+  if (loadError) {
+    return (
+      <OfficerPortalShell breadcrumb="Create tender">
+        <Callout tone="danger" title="Could not load compliance rules">
+          {loadError}
+        </Callout>
+      </OfficerPortalShell>
+    );
+  }
+  if (!rules || !requirements) {
+    return (
+      <OfficerPortalShell breadcrumb="Create tender">
+        <div className="flex h-64 items-center justify-center text-on-surface-variant">
+          <Icon name="progress_activity" className="animate-spin" size="lg" />
+        </div>
+      </OfficerPortalShell>
+    );
   }
 
   return (
     <OfficerPortalShell breadcrumb="Create tender">
       <div className="flex flex-col gap-6 pb-28">
         <PageHeader
-          breadcrumbs={[
-            { label: 'Tenders', to: '/officer/tenders' },
-            { label: 'CPCL/PROC/2026/041', to: CREATE_TENDER_ROUTES.info },
-            { label: 'Rules & compliance' },
-          ]}
+          breadcrumbs={[{ label: 'Tenders', to: '/officer/tenders' }, { label: 'Create tender', to: CREATE_TENDER_ROUTES.info }, { label: 'Rules & compliance' }]}
           eyebrow={
             <>
               <StatusBadge tone="neutral">Draft</StatusBadge>
-              <Tag mono>{DRAFT_REF}</Tag>
+              <Tag mono>{tenderId.slice(-8)}</Tag>
             </>
           }
           title="Rules & compliance"
-          description="Define the objective conditions used to evaluate bidder submissions."
+          description="Define structured conditions for how each requirement will be evaluated — AI-assisted or manual."
         />
 
         <Card padding="lg">
           <Stepper steps={CREATE_TENDER_STEPS} current={4} />
         </Card>
 
-        <Callout tone="neutral" icon="account_tree" title="Step 3 set what bidders must provide. This step sets how it is evaluated.">
-          AI can help interpret tender clauses, but rules are fixed conditions that you configure. The system never approves rules and gives no final pass/fail decision.
-        </Callout>
+        {requirements.length === 0 ? (
+          <Callout tone="warning" title="No requirements yet">
+            Add at least one bidder requirement in Step 3 before configuring rules — every rule must reference one.
+          </Callout>
+        ) : (
+          <Card padding="lg">
+            <CardHeader icon="auto_awesome" title="AI rule proposals" description="Approving a requirement in Step 3 automatically generates a structured rule proposal here. You review and confirm every one — nothing is saved automatically." />
+            {autoGenerating && (
+              <div className="mb-3 flex items-center gap-2 rounded-card border border-outline-variant bg-surface-container-lowest p-3 text-body-sm text-on-surface-variant">
+                <Icon name="progress_activity" className="animate-spin" size="md" />
+                Generating rule proposals…
+              </div>
+            )}
+            <ul className="flex flex-col gap-3">
+              {requirements
+                .filter((r) => r.status === 'approved')
+                .map((r) => {
+                  const existingRule = rules.find((ru) => ru.requirementId === r._id);
+                  const proposal = proposals[r._id];
+                  const dismissed = dismissedProposals.has(r._id);
+                  return (
+                    <li key={r._id} className="rounded-card border border-outline-variant p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-[12.5px] text-on-surface-variant">{r.code}</span>
+                            <span className="text-[15px] font-semibold text-on-surface">{r.title}</span>
+                          </div>
+                          <p className="mt-1 text-[12px] text-on-surface-variant">
+                            Source: {r.sourceDocument || 'Tender document'}{r.sourcePage ? ` · Page ${r.sourcePage}` : ''}{r.sourceClause ? ` · Clause ${r.sourceClause}` : ''}
+                          </p>
+                        </div>
+                        {existingRule ? (
+                          <StatusBadge tone="success" icon="check_circle">
+                            Rule configured
+                          </StatusBadge>
+                        ) : (
+                          <Button size="sm" leftIcon="auto_awesome" loading={proposing.has(r._id)} onClick={() => proposeRule(r._id)}>
+                            {proposeError[r._id] ? 'Retry rule proposal' : proposal ? 'Re-propose with AI' : proposing.has(r._id) ? 'Generating…' : 'Propose rule with AI'}
+                          </Button>
+                        )}
+                      </div>
 
-        <Card padding="none" className="overflow-hidden">
-          <div className="flex flex-col gap-4 px-6 pt-5 sm:flex-row sm:items-end sm:justify-between">
-            <Tabs
-              ariaLabel="Rule category"
-              value={tab}
-              onChange={(id) => setTab(id as Category)}
-              items={[
-                { id: 'technical', label: 'Technical rules', count: count('technical') },
-                { id: 'financial', label: 'Financial rules', count: count('financial') },
-              ]}
-            />
-            <div className="flex flex-col items-start gap-1.5 pb-3 sm:items-end">
-              <Button leftIcon="add" onClick={() => openDrawer('new')}>
+                      {proposeError[r._id] && (
+                        <Callout tone="danger" icon="error" title="AI unavailable" className="mt-3">
+                          {proposeError[r._id]} A rule can still be added manually below.
+                        </Callout>
+                      )}
+
+                      {!existingRule && proposal && !dismissed && (
+                        <div className="mt-3 rounded-card border border-outline-variant bg-surface-container-low p-4">
+                          {proposal.ruleApplicable ? (
+                            <>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <StatusBadge tone="info">AI-proposed rule</StatusBadge>
+                                <Tag>{RULE_TYPES.find((t) => t.id === proposal.type)?.label ?? proposal.type}</Tag>
+                              </div>
+                              <div className="mt-2 font-mono text-[13px] text-on-surface">
+                                {proposal.field} {proposal.operator} {String(proposal.value ?? '')}
+                              </div>
+                              {proposal.parameters && Object.keys(proposal.parameters).length > 0 && (
+                                <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-on-surface-variant">
+                                  {Object.entries(proposal.parameters).map(([k, v]) => (
+                                    <div key={k} className="flex gap-1.5">
+                                      <dt className="font-medium">{k}:</dt>
+                                      <dd>{String(v)}</dd>
+                                    </div>
+                                  ))}
+                                </dl>
+                              )}
+                              <p className="mt-2 text-[12.5px] text-on-surface-variant">{proposal.reason}</p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Button size="sm" leftIcon="check" loading={saving} onClick={() => acceptProposalAsIs(r._id, proposal)}>
+                                  Accept rule
+                                </Button>
+                                <Button size="sm" variant="secondary" leftIcon="edit" onClick={() => editProposal(r._id, proposal)}>
+                                  Edit
+                                </Button>
+                                <Button size="sm" variant="ghost" leftIcon="close" className="text-danger" onClick={() => dismissProposal(r._id)}>
+                                  Reject
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-[13px] font-semibold text-on-surface">No deterministic compliance rule proposed.</p>
+                              <p className="mt-1 text-[12.5px] text-on-surface-variant">Reason: {proposal.reason}</p>
+                              <Button size="sm" variant="ghost" className="mt-2" onClick={() => dismissProposal(r._id)}>
+                                Keep informational
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              {requirements.filter((r) => r.status === 'approved').length === 0 && <p className="text-body-sm text-on-surface-variant">No approved requirements yet — approve at least one in Step 3.</p>}
+            </ul>
+          </Card>
+        )}
+
+        {requirements.length === 0 ? null : (
+          <Card padding="none" className="overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant px-6 py-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-headline-sm font-semibold text-on-surface">Compliance rules</h2>
+                <span className="text-body-sm text-on-surface-variant">{rules.length} rule{rules.length === 1 ? '' : 's'}</span>
+              </div>
+              <Button size="sm" leftIcon="add" onClick={openNew}>
                 Add rule
               </Button>
             </div>
-          </div>
-          <p className="border-b border-outline-variant px-6 py-3 text-body-sm text-on-surface-variant">
-            Configure objective conditions used by the compliance engine to evaluate bidder evidence.
-          </p>
 
-          <Table minWidth={960}>
-            <THead>
-              <tr>
-                <Th>Rule</Th>
-                <Th>Condition</Th>
-                <Th>Source</Th>
-                <Th>Evaluation</Th>
-                <Th>Status</Th>
-                <Th align="right">
-                  <span className="sr-only">Actions</span>
-                </Th>
-              </tr>
-            </THead>
-            <TBody>
-              {visible.length === 0 ? (
-                <tr>
-                  <Td colSpan={6} className="py-12 text-center text-on-surface-variant">
-                    No {tab} rules yet.{' '}
-                    <button type="button" className="font-semibold text-secondary hover:underline" onClick={() => openDrawer('new')}>
-                      Add the first rule
-                    </button>
-                  </Td>
-                </tr>
-              ) : (
-                visible.map((r) => (
-                  <Tr key={r.id} className={cn(!r.active && 'opacity-60')}>
-                    <Td>
-                      <div className="font-semibold text-on-surface">{r.name}</div>
-                      <div className="text-body-sm text-on-surface-variant">
-                        {r.field}
-                        {!r.mandatory && ' · optional'}
-                      </div>
-                    </Td>
-                    <Td>
-                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium">
-                        {r.condition === 'valid_on_bid_date' && <Icon name="event_available" size="sm" className="text-secondary" />}
-                        {conditionText(r)}
-                      </span>
-                    </Td>
-                    <Td>
-                      <button type="button" onClick={() => setSourceRule(r)} className="inline-flex items-center gap-1.5 text-left text-body-sm text-secondary hover:underline">
-                        <Icon name="description" size="sm" />
-                        {r.sourceDoc.replace(/\.(pdf|xlsx)$/i, '')}, {r.sourcePage}
-                      </button>
-                    </Td>
-                    <Td>
-                      <Tag>{r.evaluation}</Tag>
-                    </Td>
-                    <Td>{r.active ? <StatusBadge tone="success">Active</StatusBadge> : <StatusBadge tone="neutral">Disabled</StatusBadge>}</Td>
-                    <Td align="right">
-                      <RowMenu
-                        rule={r}
-                        onEdit={() => openDrawer(r)}
-                        onSource={() => setSourceRule(r)}
-                        onToggle={() => {
-                          setRules((all) => all.map((x) => (x.id === r.id ? { ...x, active: !x.active } : x)));
-                          setToast(`${r.name} ${r.active ? 'disabled' : 'enabled'}`);
-                        }}
-                        onRemove={() => setRemoveRule(r)}
-                      />
-                    </Td>
-                  </Tr>
-                ))
-              )}
-            </TBody>
-          </Table>
-        </Card>
+            {rules.length === 0 ? (
+              <div className="p-6">
+                <EmptyState
+                  icon="rule"
+                  title="No rules yet"
+                  description="Add a structured condition — e.g. average annual turnover ≥ a numeric threshold."
+                  actions={
+                    <Button leftIcon="add" onClick={openNew}>
+                      Add first rule
+                    </Button>
+                  }
+                />
+              </div>
+            ) : (
+              <Table minWidth={860}>
+                <THead>
+                  <tr>
+                    <Th>Requirement</Th>
+                    <Th>Type</Th>
+                    <Th>Field</Th>
+                    <Th>Condition</Th>
+                    <Th align="right">
+                      <span className="sr-only">Actions</span>
+                    </Th>
+                  </tr>
+                </THead>
+                <TBody>
+                  {rules.map((r) => (
+                    <Tr key={r._id} className="cursor-pointer" onClick={() => setDrawer({ item: r, mode: 'view' })}>
+                      <Td className="font-semibold text-on-surface">{requirementTitle(r.requirementId)}</Td>
+                      <Td>
+                        <Tag>{RULE_TYPES.find((t) => t.id === r.type)?.label ?? r.type}</Tag>
+                      </Td>
+                      <Td className="font-mono text-[12.5px]">{r.field}</Td>
+                      <Td className="num">
+                        {r.operator} {String(r.value ?? '')}
+                      </Td>
+                      <Td align="right">
+                        <Icon name="chevron_right" size="md" className="text-outline" />
+                      </Td>
+                    </Tr>
+                  ))}
+                </TBody>
+              </Table>
+            )}
+          </Card>
+        )}
       </div>
 
       <BidActionBar
         left={
-          <Button variant="secondary" leftIcon="arrow_back" to={`${CREATE_TENDER_ROUTES.requirements}?mode=ai`}>
-            Back to bidder requirements
+          <Button variant="secondary" leftIcon="arrow_back" to={CREATE_TENDER_ROUTES.requirements}>
+            Back to requirements
           </Button>
         }
-        center={<span className="text-body-sm text-on-surface-variant">{activeCount} active rules · {rules.length - activeCount} disabled</span>}
+        center={
+          <Button variant="ghost" leftIcon="save" onClick={() => navigate('/officer/tenders')}>
+            Save draft & exit
+          </Button>
+        }
         right={
-          <>
-            <Button variant="secondary" leftIcon="save" onClick={() => navigate('/officer/tenders')}>
-              Save draft & exit
-            </Button>
-            <Button rightIcon="arrow_forward" disabled={activeCount === 0} onClick={() => navigate(CREATE_TENDER_ROUTES.review)}>
-              Continue to review & publish
-            </Button>
-          </>
+          <Button rightIcon="arrow_forward" onClick={() => navigate(CREATE_TENDER_ROUTES.review)}>
+            Continue to review & publish
+          </Button>
         }
       />
 
-      {/* Add / edit drawer */}
       <Drawer
         open={!!drawer}
         onClose={() => setDrawer(null)}
-        icon={drawer === 'new' ? 'add_task' : 'edit'}
-        title={drawer === 'new' ? 'Add evaluation rule' : 'Edit evaluation rule'}
-        description="A fixed condition checked against bidder evidence."
+        icon={drawer?.mode === 'view' ? 'fact_check' : drawer?.mode === 'new' ? 'add_circle' : 'edit'}
+        title={drawer?.mode === 'view' ? 'Rule details' : drawer?.mode === 'edit' ? 'Edit rule' : 'Add rule'}
         footer={
-          <>
-            <Button variant="secondary" onClick={() => setDrawer(null)}>
-              Cancel
-            </Button>
-            <Button leftIcon="check" onClick={save}>
-              Save rule
-            </Button>
-          </>
+          drawer?.mode === 'view' ? (
+            <div className="flex w-full items-center justify-between gap-2.5">
+              <Button variant="ghost" leftIcon="delete" className="text-danger" onClick={() => setRemoveRule(drawer.item)}>
+                Remove
+              </Button>
+              <Button variant="secondary" leftIcon="edit" onClick={() => startEdit(drawer.item)}>
+                Edit
+              </Button>
+            </div>
+          ) : drawer ? (
+            <>
+              <Button variant="secondary" onClick={() => setDrawer(null)}>
+                Cancel
+              </Button>
+              <Button leftIcon="check" loading={saving} onClick={save}>
+                {drawer.mode === 'new' ? 'Add rule' : 'Save'}
+              </Button>
+            </>
+          ) : undefined
         }
       >
-        <div className="flex flex-col gap-5">
-          <Field label="Rule name" htmlFor="ru-name" required error={errors.name}>
-            <Input id="ru-name" value={form.name} state={errors.name ? 'error' : 'default'} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Camera Resolution" />
-          </Field>
-          <Field label="Category" htmlFor="ru-cat">
-            <Select id="ru-cat" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as Category })}>
-              <option value="technical">Technical</option>
-              <option value="financial">Financial</option>
-            </Select>
-          </Field>
-          <Field label="Requirement / field" htmlFor="ru-field" required error={errors.field}>
-            <Input id="ru-field" value={form.field} state={errors.field ? 'error' : 'default'} onChange={(e) => setForm({ ...form, field: e.target.value })} placeholder="e.g. Resolution" />
-          </Field>
-          <Field
-            label="Condition type"
-            htmlFor="ru-cond"
-            required
-            helper={form.condition === 'valid_on_bid_date' ? 'Evidence must be valid on the bid submission date, not just today. Use for certificates, registrations, licences and OEM authorizations.' : undefined}
-          >
-            <Select id="ru-cond" value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value as ConditionType })}>
-              {CONDITIONS.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          {cond.needsValue && (
-            <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-4">
-              <Field label="Expected value" htmlFor="ru-val" required error={errors.value}>
-                <Input id="ru-val" value={form.value} state={errors.value ? 'error' : 'default'} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="e.g. 4K" />
-              </Field>
-              <Field label="Unit" htmlFor="ru-unit" aside={<span className="text-[12px] text-on-surface-variant">Optional</span>}>
-                <Input id="ru-unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="days" />
-              </Field>
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-4 rounded-card border border-outline-variant p-4">
-            <div>
-              <div className="text-[14px] font-semibold text-on-surface">Mandatory</div>
-              <div className="text-body-sm text-on-surface-variant">Bids that fail a mandatory rule are flagged for the officer</div>
-            </div>
-            <YesNo label="Mandatory" value={form.mandatory} onChange={(v) => setForm({ ...form, mandatory: v })} />
-          </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_140px] gap-4">
-            <Field label="Source document" htmlFor="ru-src" required error={errors.source}>
-              <Select id="ru-src" value={form.sourceDoc} state={errors.source ? 'error' : 'default'} onChange={(e) => setForm({ ...form, sourceDoc: e.target.value })}>
-                <option value="">Select document…</option>
-                {SOURCE_DOCS.map((d) => (
-                  <option key={d}>{d}</option>
+        {drawer?.mode === 'view' ? (
+          <DescriptionList
+            items={[
+              { label: 'Requirement', value: requirementTitle(drawer.item.requirementId) },
+              { label: 'Type', value: RULE_TYPES.find((t) => t.id === drawer.item.type)?.label ?? drawer.item.type },
+              { label: 'Field', value: <span className="font-mono">{drawer.item.field}</span> },
+              { label: 'Condition', value: `${drawer.item.operator} ${String(drawer.item.value ?? '')}` },
+            ]}
+          />
+        ) : drawer ? (
+          <div className="flex flex-col gap-5">
+            {formError && (
+              <Callout tone="danger" title="Could not save">
+                {formError}
+              </Callout>
+            )}
+            <Field label="Requirement" htmlFor="ru-req" required error={errors.requirementId}>
+              <Select id="ru-req" value={form.requirementId} state={errors.requirementId ? 'error' : 'default'} onChange={(e) => setForm({ ...form, requirementId: e.target.value })}>
+                <option value="">Select requirement…</option>
+                {requirements.map((r) => (
+                  <option key={r._id} value={r._id}>
+                    {r.code} — {r.title}
+                  </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Page / section" htmlFor="ru-page">
-              <Input id="ru-page" value={form.sourcePage} onChange={(e) => setForm({ ...form, sourcePage: e.target.value })} placeholder="Pg. 7" />
+            <Field label="Rule type" htmlFor="ru-type">
+              <Select id="ru-type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as RuleType })}>
+                {RULE_TYPES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </Select>
             </Field>
-          </div>
-          <Field label="Evaluation" htmlFor="ru-eval">
-            <Select id="ru-eval" value={form.evaluation} onChange={(e) => setForm({ ...form, evaluation: e.target.value as Evaluation })}>
-              <option>Automatic</option>
-              <option>Rule-based</option>
-            </Select>
-          </Field>
-          <Field label="Description / evaluation note" htmlFor="ru-note" aside={<span className="text-[12px] text-on-surface-variant">Optional</span>}>
-            <textarea
-              id="ru-note"
-              rows={3}
-              value={form.note}
-              onChange={(e) => setForm({ ...form, note: e.target.value })}
-              placeholder="Guidance for the evaluation committee"
-              className="w-full rounded-control border border-outline-variant bg-surface-container-lowest px-3.5 py-3 text-[14px] text-on-surface outline-none transition-all placeholder:text-outline hover:border-outline/60 focus:border-secondary focus:shadow-focus"
-            />
-          </Field>
-          {cond.needsValue && form.value && (
-            <div className="rounded-card bg-surface-container-low px-4 py-3 text-body-sm text-on-surface-variant">
-              Preview: <span className="font-semibold text-on-surface">{form.field || 'Field'}</span> {conditionText(form)}
+            <Field label="Field" htmlFor="ru-field" required error={errors.field} helper="The data field this rule checks, e.g. average_annual_turnover">
+              <Input id="ru-field" value={form.field} state={errors.field ? 'error' : 'default'} onChange={(e) => setForm({ ...form, field: e.target.value })} placeholder="average_annual_turnover" className="font-mono" />
+            </Field>
+            <div className="grid grid-cols-[140px_1fr] gap-4">
+              <Field label="Operator" htmlFor="ru-op">
+                <Select id="ru-op" value={form.operator} onChange={(e) => setForm({ ...form, operator: e.target.value as RuleOperator })}>
+                  {OPERATORS.map((op) => (
+                    <option key={op} value={op}>
+                      {op}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Value" htmlFor="ru-val">
+                <Input id="ru-val" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} placeholder="5000000" />
+              </Field>
             </div>
-          )}
-        </div>
+          </div>
+        ) : null}
       </Drawer>
 
-      {/* View source */}
-      <Modal
-        open={!!sourceRule}
-        onClose={() => setSourceRule(null)}
-        icon="find_in_page"
-        size="md"
-        title={sourceRule?.name}
-        description={sourceRule && `${sourceRule.sourceDoc} · ${sourceRule.sourcePage}`}
-        footer={<Button onClick={() => setSourceRule(null)}>Close</Button>}
-      >
-        {sourceRule && (
-          <div className="flex flex-col gap-4">
-            <div className="rounded-card border border-outline-variant bg-surface-container-low p-4 font-mono text-[12px] leading-relaxed text-on-surface-variant">
-              <p>[{sourceRule.sourceDoc} — {sourceRule.sourcePage}]</p>
-              <p className="mt-2 text-on-surface">
-                … {sourceRule.field}: {conditionText(sourceRule)} …
-              </p>
-            </div>
-            <p className="text-body-sm text-on-surface-variant">
-              Clause excerpt linked to this rule. The full document stays in Step 2 (Tender documents).
-            </p>
-          </div>
-        )}
-      </Modal>
-
-      {/* Remove */}
       <Modal
         open={!!removeRule}
         onClose={() => setRemoveRule(null)}
         icon="warning"
         size="md"
         title="Remove rule?"
-        description={removeRule?.name}
         footer={
           <>
             <Button variant="secondary" onClick={() => setRemoveRule(null)}>
-              Keep rule
+              Keep
             </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                if (removeRule) setRules((all) => all.filter((r) => r.id !== removeRule.id));
-                setToast('Rule removed');
-                setRemoveRule(null);
-              }}
-            >
+            <Button variant="danger" onClick={doRemove}>
               Remove
             </Button>
           </>
         }
       >
-        <p className="text-body-md text-on-surface-variant">This condition will no longer be evaluated. To pause it temporarily, disable it instead.</p>
+        <p className="text-body-md text-on-surface-variant">This permanently deletes the compliance rule.</p>
       </Modal>
 
       {toast && <Toast message={toast} />}

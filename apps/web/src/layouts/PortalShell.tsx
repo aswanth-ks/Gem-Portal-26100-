@@ -12,6 +12,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/utils/cn';
 import { Button, CountBadge, Icon, IconButton, Modal, SearchInput, StatusBadge } from '@/components/primitives';
+import { useAuth } from '@/context/AuthContext';
+import { clearOfficerToken } from '@/lib/api';
+import { LANGUAGE_LABEL, useLanguagePreference } from '@/lib/languagePreference';
 
 export interface PortalNavItem {
   id: string;
@@ -145,11 +148,15 @@ export function PortalShell({ config, breadcrumb, bare, children }: PortalShellP
   const [menuOpen, setMenuOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const { identity } = config;
+  const [language, setLanguage] = useLanguagePreference();
   const portalName = config.role === 'officer' ? 'Officer workspace' : 'Bidder portal';
 
   function signOut() {
-    // TODO: POST /api/auth/logout (invalidate the session / DSC session) before redirecting.
+    // Each role clears only its own JWT.
+    if (config.role === 'bidder') logout();
+    else clearOfficerToken();
     setSignOutOpen(false);
     navigate(`/logout?role=${config.role}`, { replace: true });
   }
@@ -210,6 +217,19 @@ export function PortalShell({ config, breadcrumb, bare, children }: PortalShellP
               <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
               <span className="text-[12px] font-medium text-on-surface-variant num">IST 14:35</span>
             </div>
+            <select
+              aria-label="Language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as 'en' | 'hi' | 'ta')}
+              className="focus-ring hidden h-8 rounded-control border border-outline-variant bg-surface-container-low px-2 text-[12px] font-medium text-on-surface-variant sm:block"
+              title="Preferred language for translation assistance"
+            >
+              {(Object.keys(LANGUAGE_LABEL) as Array<keyof typeof LANGUAGE_LABEL>).map((l) => (
+                <option key={l} value={l}>
+                  {LANGUAGE_LABEL[l]}
+                </option>
+              ))}
+            </select>
             <IconButton icon="search" aria-label="Search" className="md:hidden" />
             <IconButton icon="help" aria-label="Help & support" />
             <IconButton icon="notifications" aria-label={`Notifications (${config.notifications} unread)`} badge={config.notifications > 0} />

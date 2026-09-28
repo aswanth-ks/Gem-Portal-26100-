@@ -1,16 +1,14 @@
-// Application shell: composes global providers (state, theme, auth context)
-// around the routed page tree. Kept separate from main.tsx so it can be
-// unit-tested / wrapped independently.
-//
-// TODO: wrap with state provider (src/store) and auth provider (features/auth)
-// once those are implemented.
+// Application shell: composes global providers around the routed page tree.
+// AuthProvider is real now (Phase 1 — bidder auth backed by apps/gateway).
+// Officer auth is still out of scope and unaffected by this.
 
 import type { ReactNode } from 'react';
+import { AuthProvider } from '@/context/AuthContext';
 
 interface AppProps {
   children: ReactNode;
 }
 
 export function App({ children }: AppProps) {
-  return <>{children}</>;
+  return <AuthProvider>{children}</AuthProvider>;
 }

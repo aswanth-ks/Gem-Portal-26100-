@@ -3,51 +3,19 @@
 // fcd14cd3c7bd4ffeab24d27265e21859), built on the shared public chrome and
 // design-system primitives so it matches the Bidder Login.
 //
-// Keeps the prototype's 5 demo states (normal / invalid / empty /
-// unauthorized / session) plus client-side required-field + CAPTCHA checks.
-//
-// TODO: replace the mock submit with POST /api/auth/officer/login via
-// features/auth/api and route to the officer workspace once it exists.
+// Real sign-in: POST /api/auth/officer-login (email + password checked by
+// the gateway against an officer account). The returned officer JWT is
+// stored via setOfficerToken and attached to every /api/officer call. The
+// security-code box is a client-side speed bump only, not a security control.
 
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Breadcrumbs, Button, Callout, Card, Checkbox, Field, Icon, IconButton, Input, StatusBadge, Tabs } from '@/components/primitives';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Breadcrumbs, Button, Callout, Card, Field, Icon, IconButton, Input, StatusBadge } from '@/components/primitives';
+import { ApiError, officerLogin } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import { PublicFooter, PublicHeader } from '@/pages/home/PublicChrome';
 
-type FormState = 'default' | 'invalid' | 'empty' | 'unauthorized' | 'session';
-
-const STATES: Record<FormState, { label: string; officerId: string; password: string; captcha: string; banner?: { tone: 'danger' | 'warning'; icon: string; title: string; desc: string } }> = {
-  default: { label: 'Normal', officerId: 'CPCL-OFF-4092', password: 'SecurityToken#2024', captcha: '9KR74M' },
-  invalid: {
-    label: 'Invalid',
-    officerId: 'CPCL-OFF-9999',
-    password: 'wrong_password_demo',
-    captcha: '9KR74M',
-    banner: { tone: 'danger', icon: 'lock_clock', title: 'Authentication denied', desc: 'The Officer ID or password does not match CPCL personnel records. 2 attempts remaining before DSC token lock.' },
-  },
-  empty: {
-    label: 'Empty',
-    officerId: '',
-    password: '',
-    captcha: '',
-    banner: { tone: 'warning', icon: 'warning', title: 'Mandatory credentials missing', desc: 'Enter your Officer ID, password and the security code to continue.' },
-  },
-  unauthorized: {
-    label: 'Unauthorized',
-    officerId: 'CPCL-VND-1044',
-    password: 'Password123#',
-    captcha: '9KR74M',
-    banner: { tone: 'danger', icon: 'gpp_bad', title: 'Unauthorized account role', desc: 'This account belongs to an external vendor profile. Procurement Intelligence access is restricted to gazetted CPCL officers.' },
-  },
-  session: {
-    label: 'Session expired',
-    officerId: 'CPCL-OFF-4092',
-    password: 'SecurityToken#2024',
-    captcha: '9KR74M',
-    banner: { tone: 'warning', icon: 'timer_off', title: 'Session revoked or expired', desc: 'Your previous session timed out after 15 minutes of inactivity (Rule 18.2). Please sign in again.' },
-  },
-};
+type Banner = { tone: 'danger' | 'warning'; icon: string; title: string; desc: string };
 
 const CAPTCHA_POOL = ['9KR74M', 'X3F89K', '7P2W4D', 'CP918V', '82MD5Q'];
 
@@ -66,41 +34,52 @@ const SECURITY = [
 ];
 
 export function OfficerLoginPage() {
-  const [state, setState] = useState<FormState>('default');
-  const [values, setValues] = useState({ officerId: STATES.default.officerId, password: STATES.default.password, captcha: STATES.default.captcha });
-  const [errors, setErrors] = useState<{ officerId?: boolean; password?: boolean; captcha?: boolean }>({});
+  const location = useLocation();
+  const expired = new URLSearchParams(location.search).get('expired') === '1';
+  const [values, setValues] = useState({ email: '', password: '', captcha: '' });
+  const [errors, setErrors] = useState<{ email?: boolean; password?: boolean; captcha?: boolean }>({});
   const [showPassword, setShowPassword] = useState(false);
   const [captchaIdx, setCaptchaIdx] = useState(0);
-  const [dsc, setDsc] = useState(true);
   const [phase, setPhase] = useState<'idle' | 'verifying' | 'granted'>('idle');
+  const [banner, setBanner] = useState<Banner | undefined>(
+    expired ? { tone: 'warning', icon: 'timer_off', title: 'Session expired', desc: 'Your officer session is no longer valid. Please sign in again.' } : undefined,
+  );
   const navigate = useNavigate();
   const captchaCode = CAPTCHA_POOL[captchaIdx];
-  const banner = STATES[state].banner;
-
-  function applyState(s: FormState) {
-    setState(s);
-    setValues({ officerId: STATES[s].officerId, password: STATES[s].password, captcha: STATES[s].captcha });
-    setErrors({});
-    setPhase('idle');
-  }
+  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
 
   function refreshCaptcha() {
     setCaptchaIdx((i) => (i + 1) % CAPTCHA_POOL.length);
     setValues((v) => ({ ...v, captcha: '' }));
   }
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const next = {
-      officerId: !values.officerId.trim(),
-      password: !values.password.trim(),
+      email: !values.email.trim(),
+      password: !values.password,
       captcha: values.captcha.trim().toUpperCase() !== captchaCode,
     };
     setErrors(next);
-    if (next.officerId || next.password || next.captcha) return;
+    if (next.email || next.password || next.captcha) return;
     setPhase('verifying');
-    window.setTimeout(() => setPhase('granted'), 1200);
-    window.setTimeout(() => navigate('/officer/dashboard'), 2200);
+    setBanner(undefined);
+    try {
+      await officerLogin(values.email.trim(), values.password);
+      setPhase('granted');
+      navigate(from && from.startsWith('/officer/') ? from : '/officer/dashboard', { replace: true });
+    } catch (err) {
+      setPhase('idle');
+      refreshCaptcha();
+      setValues((v) => ({ ...v, password: '', captcha: '' }));
+      if (err instanceof ApiError && err.status === 403) {
+        setBanner({ tone: 'danger', icon: 'gpp_bad', title: 'Unauthorized account role', desc: 'This account is not an officer account. Vendors should use the bidder login.' });
+      } else if (err instanceof ApiError && err.status === 401) {
+        setBanner({ tone: 'danger', icon: 'lock_clock', title: 'Authentication denied', desc: 'The email or password is incorrect.' });
+      } else {
+        setBanner({ tone: 'danger', icon: 'error', title: 'Sign-in failed', desc: err instanceof ApiError ? err.message : 'Could not reach the server. Try again.' });
+      }
+    }
   }
 
   return (
@@ -120,13 +99,6 @@ export function OfficerLoginPage() {
               </div>
               <h1 className="text-headline-xl-mobile sm:text-page-title text-on-surface">Procurement officer login</h1>
               <p className="max-w-2xl text-body-lg text-on-surface-variant">Sign in to the CPCL Procurement Intelligence workspace. Restricted to designated tender authority personnel.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 rounded-card border border-dashed border-outline-variant bg-surface-container-lowest/60 px-3 py-2">
-              <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-on-surface-variant">
-                <Icon name="science" size="sm" className="text-outline" />
-                Preview state
-              </span>
-              <Tabs variant="pills" ariaLabel="Officer login preview state" value={state} onChange={applyState} items={(Object.keys(STATES) as FormState[]).map((id) => ({ id, label: STATES[id].label }))} />
             </div>
           </div>
 
@@ -156,17 +128,17 @@ export function OfficerLoginPage() {
                   </Callout>
                 )}
 
-                <Field label="Officer ID" htmlFor="officer-id" required aside={<span className="font-mono text-[11.5px] text-outline">CPCL-OFF-XXXX</span>} error={errors.officerId ? 'Officer ID is required' : undefined}>
+                <Field label="Official email" htmlFor="officer-email" required error={errors.email ? 'Email is required' : undefined}>
                   <Input
-                    id="officer-id"
-                    name="officerId"
+                    id="officer-email"
+                    name="email"
+                    type="email"
                     leftIcon="badge"
                     autoComplete="username"
-                    placeholder="e.g. CPCL-OFF-4092"
-                    className="font-mono"
-                    value={values.officerId}
-                    onChange={(e) => setValues((v) => ({ ...v, officerId: e.target.value }))}
-                    state={errors.officerId || state === 'invalid' || state === 'unauthorized' ? 'error' : 'default'}
+                    placeholder="name@cpcl.co.in"
+                    value={values.email}
+                    onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
+                    state={errors.email ? 'error' : 'default'}
                   />
                 </Field>
 
@@ -175,9 +147,7 @@ export function OfficerLoginPage() {
                   htmlFor="officer-password"
                   required
                   aside={
-                    <a href="#" className="focus-ring rounded text-[12.5px] font-medium text-secondary hover:underline">
-                      Forgot password?
-                    </a>
+                    <span className="text-[12px] text-outline">Reset via CPCL IT Cell</span>
                   }
                   error={errors.password ? 'Password is required' : undefined}
                 >
@@ -190,7 +160,7 @@ export function OfficerLoginPage() {
                     placeholder="Enter password"
                     value={values.password}
                     onChange={(e) => setValues((v) => ({ ...v, password: e.target.value }))}
-                    state={errors.password || state === 'invalid' ? 'error' : 'default'}
+                    state={errors.password ? 'error' : 'default'}
                     rightSlot={<IconButton size="sm" icon={showPassword ? 'visibility_off' : 'visibility'} aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((s) => !s)} />}
                   />
                 </Field>
@@ -218,10 +188,8 @@ export function OfficerLoginPage() {
                   </div>
                 </Field>
 
-                <Checkbox checked={dsc} onChange={(e) => setDsc(e.target.checked)} label="USB hardware DSC token inserted" description="Auto-verify the Class-3 signature from the attached e-Mudhra / NIC token on login." />
-
                 <Button type="submit" size="lg" variant={phase === 'granted' ? 'brand' : 'primary'} fullWidth loading={phase === 'verifying'} leftIcon={phase === 'granted' ? 'verified_user' : 'lock_open'} className={cn(phase !== 'idle' && 'pointer-events-none')}>
-                  {phase === 'verifying' ? 'Verifying DSC hardware token…' : phase === 'granted' ? 'Access granted — loading workspace' : 'Sign in to workspace'}
+                  {phase === 'verifying' ? 'Verifying credentials…' : phase === 'granted' ? 'Access granted — loading workspace' : 'Sign in to workspace'}
                 </Button>
 
                 <div className="flex flex-col items-center gap-2 border-t border-outline-variant pt-5 text-center">

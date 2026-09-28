@@ -1,13 +1,15 @@
 // Tender Listing & Search — ported from Stitch screen "CPCL Bidder Portal -
 // Tender Listing & Search" (project 6921642772921774119, screen
 // 8e3086035020499ebc5cdef3cbe2e1c1), rebuilt on the shared design system.
-// The Stitch prototype's inline script (state simulator, tabs, live search,
-// copy-to-clipboard toast) is implemented as React state.
 //
-// TODO: replace TENDER_ROWS with GET /api/tenders (filters/sort/pagination)
-// via features/tenders/api; wire filter selects and sort to query params.
+// Real data: GET /api/tenders (published tenders only — see apps/gateway).
+// The row card keeps its original shape; fields the real Tender model
+// doesn't carry (bidder-facing category tags, EMD amount, bookmarks) are
+// filled with honest generic text rather than fabricated numbers — see
+// toTenderRow() below. The old "prototype states" simulator strip is gone
+// now that loading/empty are real, not simulated.
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { BidderPortalShell } from '@/layouts/BidderPortalShell';
 import {
@@ -26,8 +28,9 @@ import {
   Toast,
 } from '@/components/primitives';
 import { cn } from '@/utils/cn';
+import { api, ApiError } from '@/lib/api';
+import type { ApiTender } from '@/lib/types';
 
-type SimState = 'all' | 'closing' | 'empty' | 'skeleton';
 type TabId = 'all' | 'open' | 'closing' | 'closed';
 type Urgency = 'normal' | 'soon' | 'critical';
 
@@ -48,123 +51,36 @@ interface TenderRow {
   bookmarked?: boolean;
 }
 
-const TENDER_ROWS: TenderRow[] = [
-  {
-    ref: 'CPCL/PROC/2026/041',
-    status: 'closing',
-    urgency: 'soon',
-    tags: [
-      { label: 'Two-cover (Tech + Fin)', tone: 'neutral' },
-      { label: 'NCB National', tone: 'neutral' },
-      { label: 'MSE exemption', tone: 'highlight' },
-    ],
-    title: 'Supply of CCTV Cameras for Public Safety Infrastructure',
-    authority: 'Manali Refinery (Zone 4)',
-    categoryIcon: 'category',
-    categoryLabel: 'Equipment & Hardware',
-    indicator: { icon: 'edit_note', tone: 'info', content: <>Draft in progress · <strong>Technical specs uploaded</strong> (step 3 of 6)</>, progress: 50 },
-    value: '₹42.50 L',
-    emd: 'EMD ₹85,000 · exemptible',
-    daysLabel: '2 days left',
-    due: '04 Oct 2026 · 17:00 IST',
-  },
-  {
-    ref: 'CPCL/PROC/2026/039',
-    status: 'open',
-    urgency: 'normal',
-    tags: [
-      { label: 'Global bidding (ICB)', tone: 'neutral' },
-      { label: 'Item-rate contract', tone: 'neutral' },
-      { label: 'Class-III DSC required', tone: 'highlight' },
-    ],
-    title: 'Industrial Network Security Equipment (OT Next-Gen Firewalls)',
-    authority: 'Refinery SCADA & Cyber Unit',
-    categoryIcon: 'lan',
-    categoryLabel: 'IT · Cyber Security',
-    indicator: { icon: 'verified', tone: 'success', content: <>Bid submitted on <strong>28 Sep</strong> · sealed in vault (#4092)</> },
-    value: '₹78.00 L',
-    emd: 'EMD ₹1,56,000',
-    daysLabel: '6 days left',
-    due: '08 Oct 2026 · 15:00 IST',
-    bookmarked: true,
-  },
-  {
-    ref: 'CPCL/PROC/2026/037',
-    status: 'open',
-    urgency: 'normal',
-    tags: [
-      { label: 'Two-cover system', tone: 'neutral' },
-      { label: 'Turnkey execution', tone: 'neutral' },
-      { label: 'Technical evaluation', tone: 'highlight' },
-    ],
-    title: 'Control Room Display Systems (Ultra-High Brightness Video Wall)',
-    authority: 'Plant Electrical & Instrumentation',
-    categoryIcon: 'tv',
-    categoryLabel: 'Equipment · Display Systems',
-    indicator: { icon: 'campaign', tone: 'neutral', content: <>Pre-bid meeting held <strong>22 Sep</strong>. Corrigendum-1 issued with revised port clearances.</> },
-    value: '₹29.80 L',
-    emd: 'EMD ₹60,000',
-    daysLabel: '10 days left',
-    due: '12 Oct 2026 · 12:00 IST',
-  },
-  {
-    ref: 'CPCL/PROC/2026/035',
-    status: 'closing',
-    urgency: 'critical',
-    tags: [
-      { label: 'Two-cover system', tone: 'neutral' },
-      { label: 'Critical replacement', tone: 'danger' },
-      { label: 'Class-III DSC required', tone: 'highlight' },
-    ],
-    title: 'Industrial Safety Monitoring & Gas Detection Sensor Array',
-    authority: 'Safety & Environmental Protection',
-    categoryIcon: 'sensors',
-    categoryLabel: 'Equipment · Safety & Instrumentation',
-    indicator: { icon: 'warning', tone: 'warning', content: <>Submissions close <strong>this evening at 17:00 IST</strong>. Sign digital tokens before 16:30.</> },
-    value: '₹36.20 L',
-    emd: 'EMD ₹72,400',
-    daysLabel: 'Closes in 14 h',
-    due: '02 Oct 2026 · 17:00 IST',
-  },
-  {
-    ref: 'CPCL/PROC/2026/033',
-    status: 'open',
-    urgency: 'normal',
-    tags: [
-      { label: 'Annual service contract', tone: 'neutral' },
-      { label: 'ICB global', tone: 'neutral' },
-      { label: 'Experience required', tone: 'highlight' },
-    ],
-    title: 'Annual Maintenance Contract for Heavy-Duty Gas Turbine Generators',
-    authority: 'Captive Power Plant (CPP-II)',
-    categoryIcon: 'build',
-    categoryLabel: 'Services & Maintenance',
-    indicator: { icon: 'info', tone: 'neutral', content: <>OEM certification or equivalent power-turbine experience is mandatory.</> },
-    value: '₹115.00 L',
-    emd: 'EMD ₹2,30,000',
-    daysLabel: '13 days left',
-    due: '15 Oct 2026 · 16:30 IST',
-  },
-  {
-    ref: 'CPCL/PROC/2026/030',
-    status: 'open',
-    urgency: 'normal',
-    tags: [
-      { label: 'Two-cover system', tone: 'neutral' },
-      { label: 'EPC turnkey', tone: 'neutral' },
-      { label: 'Technical eligibility', tone: 'highlight' },
-    ],
-    title: 'Revamping of Effluent Treatment Plant (ETP) Instrumentation',
-    authority: 'Environmental Operations Wing',
-    categoryIcon: 'nature',
-    categoryLabel: 'Infrastructure & Civil',
-    indicator: { icon: 'event_note', tone: 'neutral', content: <>Mandatory site inspection <strong>05–07 Oct</strong> before technical cut-off.</> },
-    value: '₹64.20 L',
-    emd: 'EMD ₹1,28,400',
-    daysLabel: '16 days left',
-    due: '18 Oct 2026 · 14:15 IST',
-  },
-];
+function toTenderRow(t: ApiTender): TenderRow {
+  const deadline = new Date(t.submissionDeadline);
+  const hoursLeft = (deadline.getTime() - Date.now()) / (1000 * 60 * 60);
+  const urgency: Urgency = hoursLeft <= 24 ? 'critical' : hoursLeft <= 72 ? 'soon' : 'normal';
+  const daysLeft = Math.max(0, Math.ceil(hoursLeft / 24));
+  return {
+    ref: t.tenderNumber,
+    status: hoursLeft <= 72 ? 'closing' : 'open',
+    urgency,
+    tags: [{ label: 'Published tender', tone: 'neutral' }],
+    title: t.title,
+    authority: t.department,
+    categoryIcon: 'assignment',
+    categoryLabel: 'Procurement',
+    indicator: {
+      icon: 'checklist',
+      tone: 'info',
+      content: (
+        <>
+          <strong>{t.eligibilityCriteria.length}</strong> eligibility criteria · <strong>{t.requiredDocuments.length}</strong> documents required
+        </>
+      ),
+    },
+    value: t.value,
+    emd: 'EMD as specified in the tender document',
+    daysLabel: hoursLeft <= 0 ? 'Closed' : hoursLeft <= 24 ? `Closes in ${Math.max(1, Math.round(hoursLeft))}h` : `${daysLeft} days left`,
+    due: deadline.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', ' ·'),
+  };
+}
+
 
 const FILTERS: { label: string; options: string[] }[] = [
   { label: 'Category', options: ['All categories', 'Equipment & Hardware', 'Services & Maintenance', 'Infrastructure & Civil', 'IT & Cyber Security', 'Safety & Environmental'] },
@@ -188,12 +104,24 @@ const INDICATOR_TONE = {
 };
 
 export function TenderListingPage() {
-  const [simState, setSimState] = useState<SimState>('all');
+  const [tenders, setTenders] = useState<ApiTender[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('all');
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [chips, setChips] = useState(INITIAL_CHIPS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<ApiTender[]>('/tenders')
+      .then((data) => !cancelled && setTenders(data))
+      .catch((err) => !cancelled && setLoadError(err instanceof ApiError ? err.message : 'Could not load tenders.'));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function showToast(message: string) {
     setToast(message);
@@ -208,66 +136,48 @@ export function TenderListingPage() {
   function selectTab(tab: TabId) {
     setActiveTab(tab);
     setQuery('');
-    if (tab === 'closing') setSimState('closing');
-    else if (tab === 'closed') setSimState('empty');
-    else setSimState('all');
   }
 
   function resetAll() {
-    setSimState('all');
     setActiveTab('all');
     setQuery('');
   }
 
+  const rows = useMemo(() => (tenders ?? []).map(toTenderRow), [tenders]);
+
   const visibleRows = useMemo(() => {
-    if (simState === 'empty' || simState === 'skeleton') return [];
-    const base = simState === 'closing' ? TENDER_ROWS.filter((r) => r.status === 'closing') : TENDER_ROWS;
+    const base = activeTab === 'closing' ? rows.filter((r) => r.status === 'closing') : activeTab === 'open' ? rows.filter((r) => r.status === 'open') : activeTab === 'closed' ? [] : rows;
     const q = query.trim().toLowerCase();
     if (!q) return base;
     return base.filter((r) => `${r.title} ${r.ref} ${r.authority} ${r.categoryLabel}`.toLowerCase().includes(q));
-  }, [simState, query]);
+  }, [rows, activeTab, query]);
 
-  const showEmpty = simState === 'empty' || (simState !== 'skeleton' && query.trim() !== '' && visibleRows.length === 0);
-  const showSkeleton = simState === 'skeleton';
+  const showSkeleton = tenders === null && !loadError;
+  const showEmpty = !showSkeleton && !loadError && visibleRows.length === 0;
 
   const subtitle = showSkeleton
-    ? 'Loading synchronized tenders…'
-    : showEmpty
-      ? 'No procurement opportunities located'
-      : query.trim()
-        ? `${visibleRows.length} matching opportunities`
-        : simState === 'closing'
-          ? '2 of 6 tenders closing within the critical window'
-          : `Showing 1–${visibleRows.length} of 48 active opportunities`;
+    ? 'Loading published tenders…'
+    : loadError
+      ? loadError
+      : showEmpty
+        ? 'No procurement opportunities located'
+        : query.trim()
+          ? `${visibleRows.length} matching opportunities`
+          : `Showing ${visibleRows.length} of ${rows.length} active opportunities`;
 
   return (
     <BidderPortalShell>
       {toast && <Toast message={toast} icon="content_copy" />}
 
       <div className="flex flex-col gap-6">
-        {/* Demo state simulator — deliberately quiet */}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-dashed border-outline-variant bg-surface-container-lowest/60 px-4 py-2.5">
-          <span className="inline-flex items-center gap-2 text-[12px] font-medium text-on-surface-variant">
-            <Icon name="science" size="sm" className="text-outline" />
-            Prototype states
-          </span>
-          <Tabs
-            variant="pills"
-            ariaLabel="Prototype state"
-            value={simState}
-            onChange={(id) => {
-              setSimState(id);
-              setActiveTab('all');
-              setQuery('');
-            }}
-            items={[
-              { id: 'all', label: 'All active' },
-              { id: 'closing', label: 'Closing soon' },
-              { id: 'empty', label: 'Empty' },
-              { id: 'skeleton', label: 'Loading' },
-            ]}
-          />
-        </div>
+        {loadError && (
+          <Card padding="sm" className="border-danger-border bg-danger-container/40">
+            <p className="flex items-center gap-2 text-body-sm text-danger-on-container">
+              <Icon name="error" size="sm" />
+              {loadError}
+            </p>
+          </Card>
+        )}
 
         <PageHeader
           eyebrow={<StatusBadge status="open">Public sector · open bidding</StatusBadge>}
@@ -290,10 +200,7 @@ export function TenderListingPage() {
           <div className="flex flex-col gap-4 p-5 sm:p-6">
             <SearchInput
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setSimState(e.target.value.trim() ? 'all' : simState === 'skeleton' ? 'all' : simState);
-              }}
+              onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by title, NIT number, division or category…"
               aria-label="Search tenders"
               onSubmitSearch={() => undefined}
@@ -301,7 +208,7 @@ export function TenderListingPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="inline-flex items-center gap-2 text-body-sm text-on-surface-variant">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
-                <strong className="font-semibold text-on-surface num">48</strong> active opportunities · CVC-compliant open bidding
+                <strong className="font-semibold text-on-surface num">{rows.length}</strong> active opportunities · CVC-compliant open bidding
               </span>
               <Button variant="ghost" size="sm" leftIcon="tune" className="md:hidden" onClick={() => setFiltersOpen((v) => !v)} aria-expanded={filtersOpen}>
                 {filtersOpen ? 'Hide filters' : 'Filters'}
@@ -362,10 +269,10 @@ export function TenderListingPage() {
               value={activeTab}
               onChange={selectTab}
               items={[
-                { id: 'all', label: 'All', count: 48 },
-                { id: 'open', label: 'Open', count: 42 },
-                { id: 'closing', label: 'Closing soon', count: 6, countTone: 'warning' },
-                { id: 'closed', label: 'Closed / under evaluation', count: 129 },
+                { id: 'all', label: 'All', count: rows.length },
+                { id: 'open', label: 'Open', count: rows.filter((r) => r.status === 'open').length },
+                { id: 'closing', label: 'Closing soon', count: rows.filter((r) => r.status === 'closing').length, countTone: 'warning' },
+                { id: 'closed', label: 'Closed / under evaluation', count: 0 },
               ]}
             />
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -531,7 +438,7 @@ export function TenderListingPage() {
           {!showEmpty && !showSkeleton && (
             <div className="flex flex-col gap-4 pt-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3 text-body-sm text-on-surface-variant">
-                <span>Showing 1–6 of 48</span>
+                <span>Showing {visibleRows.length} of {rows.length}</span>
                 <label className="flex items-center gap-2">
                   <span>Per page</span>
                   <Select size="sm" defaultValue="6" className="!w-20">

@@ -24,7 +24,23 @@ const STEPS = [
 ];
 
 /** Tender identity strip shown at the top of every workspace step. */
-export function TenderContextBanner({ tenderRef = BID_TENDER.ref }: { tenderRef?: string }) {
+export function TenderContextBanner({
+  tenderRef = BID_TENDER.ref,
+  title = BID_TENDER.title,
+  authority = BID_TENDER.authority,
+  draftId = BID_TENDER.draftId,
+  deadline = BID_TENDER.deadline,
+  daysRemaining = BID_TENDER.daysRemaining,
+  closed = false,
+}: {
+  tenderRef?: string;
+  title?: string;
+  authority?: string;
+  draftId?: string;
+  deadline?: string;
+  daysRemaining?: string;
+  closed?: boolean;
+}) {
   return (
     <Card padding="none" className="overflow-hidden">
       <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
@@ -36,19 +52,19 @@ export function TenderContextBanner({ tenderRef = BID_TENDER.ref }: { tenderRef?
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Tag mono>{tenderRef}</Tag>
-              <StatusBadge status="open" />
-              <Tag mono>{BID_TENDER.draftId}</Tag>
+              <StatusBadge status={closed ? 'closed' : 'open'} />
+              <Tag mono>{draftId}</Tag>
             </div>
-            <h2 className="mt-2 text-[18px] font-semibold leading-snug text-on-surface">{BID_TENDER.title}</h2>
-            <p className="mt-0.5 text-body-sm text-on-surface-variant">{BID_TENDER.authority}</p>
+            <h2 className="mt-2 text-[18px] font-semibold leading-snug text-on-surface">{title}</h2>
+            <p className="mt-0.5 text-body-sm text-on-surface-variant">{authority}</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-4 rounded-card border border-warning-border bg-warning-container px-4 py-3">
           <Icon name="alarm" size="xl" className="text-warning-on-container" />
           <div>
             <div className="text-[12px] font-medium text-warning-on-container/80">Submission deadline</div>
-            <div className="text-[15px] font-semibold text-warning-on-container num">{BID_TENDER.deadline}</div>
-            <div className="text-[12px] font-medium text-warning-on-container">{BID_TENDER.daysRemaining}</div>
+            <div className="text-[15px] font-semibold text-warning-on-container num">{deadline}</div>
+            <div className="text-[12px] font-medium text-warning-on-container">{daysRemaining}</div>
           </div>
         </div>
       </div>

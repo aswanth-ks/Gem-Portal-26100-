@@ -1,9 +1,26 @@
-// Shared constants for the officer "Create tender" wizard (O04, O05, …) so
-// every step shows the same draft reference and stepper.
+// Shared constants + real-draft-id plumbing for the officer "Create tender"
+// wizard (O04–O08) so every step shows the same stepper and operates on the
+// same MongoDB tender document.
+//
+// The wizard's routes are fixed paths (no :id segment) — see AppRouter.tsx.
+// Rather than restructure routing, the in-progress draft's real Mongo _id is
+// kept in sessionStorage: it survives a refresh on the same step (Test 2)
+// but is scoped to one browser tab, matching this wizard's single-draft-at-a-
+// time design. Starting a new tender (Step 1 with no id) creates a fresh one.
 
 import type { StepItem } from '@/components/primitives';
 
-export const DRAFT_REF = 'TND-DRAFT-2026-0047';
+const DRAFT_ID_KEY = 'gem_portal_officer_draft_tender_id';
+
+export function getDraftTenderId(): string | null {
+  return sessionStorage.getItem(DRAFT_ID_KEY);
+}
+export function setDraftTenderId(id: string): void {
+  sessionStorage.setItem(DRAFT_ID_KEY, id);
+}
+export function clearDraftTenderId(): void {
+  sessionStorage.removeItem(DRAFT_ID_KEY);
+}
 
 export const CREATE_TENDER_STEPS: StepItem[] = [
   { label: 'Tender information' },

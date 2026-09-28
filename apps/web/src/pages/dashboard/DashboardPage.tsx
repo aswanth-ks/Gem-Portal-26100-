@@ -3,313 +3,225 @@
 // (project 6921642772921774119, screen 580e1bf595b940e88a6765985d9e6e8e) and
 // rebuilt on the shared design-system primitives.
 //
-// TODO: replace all mock content (metrics, active submission, recent
-// submissions, alerts, activity) with data from features/dashboard,
-// features/tenders and features/documents via services/api once the gateway
-// exposes the relevant endpoints.
+// Real data: GET /api/profile (via AuthContext), GET /api/tenders,
+// GET /api/bids. Metrics, the "continue draft" card and "recent submissions"
+// are all derived from these responses — nothing here is invented. Backend
+// states are limited to draft | submitted | closed; fabricated pipeline
+// states from the prototype (OCR, vault stages, DSC signing, activity feed)
+// are removed since none of that exists server-side yet.
 
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BidderPortalShell } from '@/layouts/BidderPortalShell';
-import {
-  Button,
-  Callout,
-  Card,
-  CardHeader,
-  CellStack,
-  Icon,
-  PageHeader,
-  StatCard,
-  StatusBadge,
-  Table,
-  TBody,
-  Td,
-  Th,
-  THead,
-  Tr,
-  Tag,
-  type Status,
-} from '@/components/primitives';
-import { cn } from '@/utils/cn';
+import { Button, Callout, Card, CardHeader, CellStack, EmptyState, Icon, PageHeader, Skeleton, StatCard, StatusBadge, Table, TBody, Td, Th, THead, Tr, Tag } from '@/components/primitives';
+import { useAuth } from '@/context/AuthContext';
+import { api, ApiError } from '@/lib/api';
+import type { ApiBid, ApiTender } from '@/lib/types';
 
-const ACTIVE_TENDER = 'CPCL%2FPROC%2F2026%2F041';
-
-const METRICS: { label: string; value: string; hint: string; icon: string; tone: 'info' | 'success' | 'neutral' | 'warning' }[] = [
-  { label: 'Open tenders', value: '18', hint: 'Currently accepting bids', icon: 'folder_open', tone: 'info' },
-  { label: 'Submitted', value: '4', hint: 'Active sealed bids', icon: 'verified', tone: 'success' },
-  { label: 'Drafts', value: '1', hint: 'Needs completion', icon: 'edit_note', tone: 'neutral' },
-  { label: 'Closing soon', value: '2', hint: 'Within next 7 days', icon: 'timer', tone: 'warning' },
-];
-
-const PROGRESS_STEPS = [
-  { step: 1, label: 'Tender details', status: 'Completed', state: 'done' as const },
-  { step: 2, label: 'Eligibility check', status: 'Completed', state: 'done' as const },
-  { step: 3, label: 'Mandatory docs', status: 'Uploading UDIN CA', state: 'active' as const },
-  { step: 4, label: 'Technical bid', status: 'Pending', state: 'pending' as const },
-  { step: 5, label: 'Financial BoQ', status: 'Pending', state: 'pending' as const },
-  { step: 6, label: 'DSC sign', status: 'Pending', state: 'locked' as const },
-];
-
-const SUBMISSIONS: { title: string; ref: string; submissionId: string; submittedOn: string; status: Status; statusLabel?: string; actionLabel: string; to: string }[] = [
-  {
-    title: 'Supply of CCTV Cameras (Security Phase I)',
-    ref: 'CPCL/PROC/2026/041',
-    submissionId: 'BID-2026-00418',
-    submittedOn: '02 Oct 2026 · 14:32 IST',
-    status: 'submitted',
-    actionLabel: 'View envelope',
-    to: '/my-bids/BID-2026-00418',
-  },
-  {
-    title: 'Industrial Network Security Equipment (OT Firewall)',
-    ref: 'CPCL/PROC/2026/039',
-    submissionId: 'BID-2026-00402',
-    submittedOn: '28 Sep 2026 · 11:10 IST',
-    status: 'processing',
-    actionLabel: 'View status',
-    to: '/my-bids/BID-2026-00402',
-  },
-  {
-    title: 'Control Room Display Systems (Ultra-High Brightness)',
-    ref: 'CPCL/PROC/2026/037',
-    submissionId: 'BID-2026-00391',
-    submittedOn: '20 Sep 2026 · 09:42 IST',
-    status: 'draft',
-    statusLabel: 'Draft · 11/14',
-    actionLabel: 'Continue',
-    to: '/tenders/CPCL%2FPROC%2F2026%2F037/bid/1',
-  },
-];
-
-const VAULT_STAGES = [
-  { label: 'Submitted', meta: '02 Oct, 14:32 IST', sub: 'Digital timestamped', state: 'done' as const },
-  { label: 'Documents', meta: 'OCR & PAN/GSTIN', sub: 'Automated match', state: 'done' as const },
-  { label: 'Matrix stored', meta: 'Deterministic proof', sub: 'Compliance logged', state: 'done' as const },
-  { label: 'Sealed vault', meta: '2048-bit AES', sub: 'Tamper-proof block', state: 'done' as const },
-  { label: 'Locked', meta: 'Inactive to officers', sub: 'Opens 04 Oct 17:00', state: 'locked' as const },
-];
-
-const QUICK_ACTIONS: { icon: string; label: string; to?: string; badge?: string }[] = [
-  { icon: 'travel_explore', label: 'Search public tenders', to: '/tenders' },
-  { icon: 'mark_email_read', label: 'View my bid envelopes', to: '/my-bids' },
-  { icon: 'vpn_key', label: 'Manage DSC & certificates' },
-  { icon: 'feed', label: 'Check corrigenda & notices', badge: 'New' },
-];
-
-const ALERTS = [
-  {
-    tone: 'warning' as const,
-    label: 'Closing soon',
-    body: (
-      <>
-        Tender <strong>CPCL/PROC/2026/041</strong> closes in 48 hours. Ensure your Class-3 DSC USB token is inserted for final signing.
-      </>
-    ),
-  },
-  {
-    tone: 'info' as const,
-    label: 'Action required',
-    body: (
-      <>
-        Complete draft <strong>BID-2026-00391</strong> (Control Room Displays) before 12 Oct 2026 to prevent auto-cancellation.
-      </>
-    ),
-  },
-];
-
-const ACTIVITY_FEED = [
-  { time: 'Today · 14:34 IST', text: 'Automated document verification completed', sub: '14/14 statutory credentials valid', live: true },
-  { time: 'Today · 14:32 IST', text: 'Bid submitted: Supply of CCTV Cameras', sub: 'Envelope BID-2026-00418 sealed', live: true },
-  { time: '28 Sep · 11:10 IST', text: 'Bid submitted: OT Firewall & IPS', sub: 'Envelope BID-2026-00402', live: false },
-  { time: '20 Sep · 09:42 IST', text: 'Draft initiated: Control Room Display', sub: 'BoQ template exported', live: false },
-];
+function tenderOf(bid: ApiBid): ApiTender | null {
+  return typeof bid.tenderId === 'string' ? null : bid.tenderId;
+}
 
 export function DashboardPage() {
+  const { profile } = useAuth();
+  const [tenders, setTenders] = useState<ApiTender[] | null>(null);
+  const [bids, setBids] = useState<ApiBid[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  function load() {
+    setLoadError(null);
+    setTenders(null);
+    setBids(null);
+    Promise.all([api.get<ApiTender[]>('/tenders'), api.get<ApiBid[]>('/bids')])
+      .then(([t, b]) => {
+        setTenders(t);
+        setBids(b);
+      })
+      .catch((err) => setLoadError(err instanceof ApiError ? err.message : 'Could not load dashboard data.'));
+  }
+
+  useEffect(load, []);
+
+  if (loadError) {
+    return (
+      <BidderPortalShell>
+        <Card padding="lg">
+          <EmptyState
+            icon="error"
+            tone="danger"
+            title="Could not load your dashboard"
+            description={loadError}
+            actions={
+              <Button variant="secondary" onClick={load}>
+                Retry
+              </Button>
+            }
+          />
+        </Card>
+      </BidderPortalShell>
+    );
+  }
+
+  if (!tenders || !bids) {
+    return (
+      <BidderPortalShell>
+        <div className="flex flex-col gap-6">
+          <Skeleton className="h-24 w-full" />
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+            <Skeleton className="h-24" />
+          </div>
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </BidderPortalShell>
+    );
+  }
+
+  const now = Date.now();
+  const openTenders = tenders.filter((t) => t.status === 'published' && new Date(t.submissionDeadline).getTime() > now);
+  const closingSoon = openTenders.filter((t) => new Date(t.submissionDeadline).getTime() - now < 7 * 86_400_000);
+  const submittedBids = bids.filter((b) => b.status === 'submitted' || b.status === 'closed');
+  const draftBids = bids.filter((b) => b.status === 'draft');
+  const activeDraft = draftBids[0] ?? null;
+  const activeDraftTender = activeDraft ? tenderOf(activeDraft) : null;
+
+  const recent = [...bids]
+    .filter((b) => b.status === 'submitted' || b.status === 'closed')
+    .sort((a, b) => new Date(b.submittedAt ?? b.updatedAt).getTime() - new Date(a.submittedAt ?? a.updatedAt).getTime())
+    .slice(0, 5);
+
+  const orgName = profile?.organizationName ?? 'your organization';
+
   return (
     <BidderPortalShell>
       <div className="flex flex-col gap-10">
         <PageHeader
-          eyebrow={
-            <>
-              <StatusBadge status="verified">Class-3 DSC active</StatusBadge>
-              <Tag mono>BIDDER-00482</Tag>
-            </>
-          }
-          title="Good morning, ABC Engineering"
-          description="Your bidding activity, sealed-vault status and pending submissions at a glance."
+          eyebrow={profile ? <Tag mono>{profile.registrationNumber}</Tag> : undefined}
+          title={`Welcome, ${orgName}`}
+          description="Your bidding activity at a glance."
           actions={
-            <>
-              <Button variant="secondary" leftIcon="download">
-                Activity log
-              </Button>
-              <Button to="/tenders" leftIcon="add">
-                New bid submission
-              </Button>
-            </>
+            <Button to="/tenders" leftIcon="add">
+              Browse tenders
+            </Button>
           }
         />
 
         {/* KPIs */}
         <section aria-label="Summary" className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {METRICS.map((m) => (
-            <StatCard key={m.label} label={m.label} value={m.value} hint={m.hint} icon={m.icon} tone={m.tone} />
-          ))}
+          <StatCard label="Open tenders" value={String(openTenders.length)} hint="Currently accepting bids" icon="folder_open" tone="info" />
+          <StatCard label="Submitted" value={String(submittedBids.length)} hint="Recorded by the server" icon="verified" tone="success" />
+          <StatCard label="Drafts" value={String(draftBids.length)} hint="Needs completion" icon="edit_note" tone="neutral" />
+          <StatCard label="Closing soon" value={String(closingSoon.length)} hint="Within next 7 days" icon="timer" tone="warning" />
         </section>
 
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-12">
           {/* MAIN COLUMN */}
           <div className="flex flex-col gap-6 xl:col-span-8">
-            {/* Continue where you left off — the one emphasized card */}
-            <Card padding="none" className="overflow-hidden">
-              <div className="h-1 bg-gradient-to-r from-secondary via-secondary to-saffron" aria-hidden="true" />
-              <div className="flex flex-col gap-6 p-6 sm:p-7">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge status="active">In-progress draft</StatusBadge>
-                    <Tag mono>CPCL/PROC/2026/041</Tag>
+            {activeDraft && activeDraftTender ? (
+              <Card padding="none" className="overflow-hidden">
+                <div className="h-1 bg-gradient-to-r from-secondary via-secondary to-saffron" aria-hidden="true" />
+                <div className="flex flex-col gap-6 p-6 sm:p-7">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status="draft">In-progress draft</StatusBadge>
+                      <Tag mono>{activeDraftTender.tenderNumber}</Tag>
+                    </div>
+                    <span className="text-body-sm text-on-surface-variant">Last updated {new Date(activeDraft.updatedAt).toLocaleString('en-IN')}</span>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 text-body-sm text-on-surface-variant">
-                    <Icon name="cloud_done" size="sm" className="text-success" />
-                    Auto-saved 14 min ago
-                  </span>
-                </div>
 
-                <div className="flex flex-col gap-2">
-                  <h2 className="text-headline-lg text-on-surface">Supply of CCTV Cameras for Public Safety Infrastructure</h2>
-                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-body-sm text-on-surface-variant">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Icon name="factory" size="sm" />
-                      Manali Refinery Operations
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 font-medium text-danger-on-container">
-                      <Icon name="schedule" size="sm" />
-                      Closes 04 Oct 2026 · 17:00 IST (in 2 days)
-                    </span>
+                  <div className="flex flex-col gap-2">
+                    <h2 className="text-headline-lg text-on-surface">{activeDraftTender.title}</h2>
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-body-sm text-on-surface-variant">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Icon name="factory" size="sm" />
+                        {activeDraftTender.department}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 font-medium text-danger-on-container">
+                        <Icon name="schedule" size="sm" />
+                        Closes {new Date(activeDraftTender.submissionDeadline).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap gap-2.5">
+                      <Button size="lg" rightIcon="arrow_forward" to={`/tenders/${encodeURIComponent(activeDraftTender.tenderNumber)}/bid/1`}>
+                        Continue draft
+                      </Button>
+                      <Button size="lg" variant="secondary" leftIcon="description" to={`/tenders/${encodeURIComponent(activeDraftTender.tenderNumber)}`}>
+                        View tender
+                      </Button>
+                    </div>
                   </div>
                 </div>
-
-                {/* Progress */}
-                <div className="rounded-card border border-outline-variant/70 bg-surface-container-low p-5">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <span className="text-[14px] font-semibold text-on-surface">Submission progress</span>
-                    <span className="text-[13px] font-medium text-secondary num">3 of 6 steps · 50%</span>
-                  </div>
-                  <div className="mb-5 h-2 w-full overflow-hidden rounded-full bg-surface-container-high">
-                    <div className="h-full rounded-full bg-secondary transition-all duration-500" style={{ width: '50%' }} />
-                  </div>
-                  <ol className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                    {PROGRESS_STEPS.map((s) => (
-                      <li
-                        key={s.step}
-                        className={cn(
-                          'flex flex-col gap-1 rounded-control border bg-surface-container-lowest p-3',
-                          s.state === 'active' ? 'border-secondary/50 shadow-focus' : 'border-outline-variant/70',
-                          (s.state === 'pending' || s.state === 'locked') && 'opacity-70',
-                        )}
-                      >
-                        <span className={cn('flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em]', s.state === 'done' ? 'text-success-on-container' : s.state === 'active' ? 'text-secondary' : 'text-outline')}>
-                          <Icon name={s.state === 'done' ? 'check_circle' : s.state === 'active' ? 'radio_button_checked' : s.state === 'locked' ? 'lock' : 'radio_button_unchecked'} size="xs" fill={s.state === 'done'} />
-                          Step {s.step}
-                        </span>
-                        <span className="truncate text-[13px] font-semibold text-on-surface">{s.label}</span>
-                        <span className={cn('truncate text-[12px]', s.state === 'active' ? 'text-secondary' : 'text-on-surface-variant')}>{s.status}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-2.5">
-                    <Button size="lg" rightIcon="arrow_forward" to={`/tenders/${ACTIVE_TENDER}/bid/2`}>
-                      Continue submission
+              </Card>
+            ) : (
+              <Card padding="lg">
+                <EmptyState
+                  icon="edit_note"
+                  title="No draft in progress"
+                  description="Start a bid from any open tender to see it here."
+                  actions={
+                    <Button to="/tenders" leftIcon="travel_explore">
+                      Browse tenders
                     </Button>
-                    <Button size="lg" variant="secondary" leftIcon="description" to={`/tenders/${ACTIVE_TENDER}`}>
-                      View specifications
-                    </Button>
-                  </div>
-                  <span className="hidden items-center gap-1.5 text-body-sm text-on-surface-variant md:inline-flex">
-                    <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true" />
-                    UDIN verification engine connected
-                  </span>
-                </div>
-              </div>
-            </Card>
+                  }
+                />
+              </Card>
+            )}
 
             {/* Recent submissions */}
             <Card padding="none">
               <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-6 pb-4">
                 <div>
                   <h2 className="text-headline-md text-on-surface">Recent submissions</h2>
-                  <p className="mt-0.5 text-body-sm text-on-surface-variant">{SUBMISSIONS.length} records in the last 30 days</p>
+                  <p className="mt-0.5 text-body-sm text-on-surface-variant">{recent.length} record{recent.length === 1 ? '' : 's'}</p>
                 </div>
                 <Button variant="ghost" size="sm" rightIcon="arrow_forward" to="/my-bids">
                   All my bids
                 </Button>
               </div>
-              <Table minWidth={640}>
-                <THead>
-                  <tr>
-                    <Th className="pl-6">Tender</Th>
-                    <Th>Submitted</Th>
-                    <Th>Status</Th>
-                    <Th align="right" className="pr-6">
-                      <span className="sr-only">Action</span>
-                    </Th>
-                  </tr>
-                </THead>
-                <TBody>
-                  {SUBMISSIONS.map((row) => (
-                    <Tr key={row.submissionId}>
-                      <Td className="pl-6">
-                        <CellStack primary={row.title} secondary={<span className="font-mono text-[12px]">{row.submissionId} · {row.ref}</span>} />
-                      </Td>
-                      <Td className="text-body-sm text-on-surface-variant">{row.submittedOn}</Td>
-                      <Td>
-                        <StatusBadge status={row.status}>{row.statusLabel}</StatusBadge>
-                      </Td>
-                      <Td align="right" className="pr-6">
-                        <Button variant="ghost" size="sm" rightIcon="chevron_right" to={row.to}>
-                          {row.actionLabel}
-                        </Button>
-                      </Td>
-                    </Tr>
-                  ))}
-                </TBody>
-              </Table>
-            </Card>
-
-            {/* Vault lifecycle */}
-            <Card>
-              <CardHeader
-                icon="security"
-                title="Submission lifecycle & vault guarantee"
-                description="Latest sealed envelope and its cryptographic custody chain"
-                actions={<Tag mono>BID-2026-00418</Tag>}
-              />
-              <ol className="grid grid-cols-1 gap-3 md:grid-cols-5">
-                {VAULT_STAGES.map((stage, i) => (
-                  <li
-                    key={stage.label}
-                    className={cn(
-                      'flex flex-col gap-1.5 rounded-card border p-4',
-                      stage.state === 'locked' ? 'border-navy bg-navy text-white' : 'border-outline-variant/70 bg-surface-container-low',
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={cn('text-[11px] font-semibold uppercase tracking-[0.06em] num', stage.state === 'locked' ? 'text-saffron' : 'text-on-surface-variant')}>
-                        0{i + 1}
-                      </span>
-                      <Icon name={stage.state === 'locked' ? 'lock' : 'check_circle'} size="sm" fill className={stage.state === 'locked' ? 'text-saffron' : 'text-success'} />
-                    </div>
-                    <span className={cn('text-[14px] font-semibold', stage.state === 'locked' ? 'text-white' : 'text-on-surface')}>{stage.label}</span>
-                    <span className={cn('text-[12px]', stage.state === 'locked' ? 'text-white/70' : 'text-on-surface-variant')}>{stage.meta}</span>
-                    <span className={cn('text-[12px] font-medium', stage.state === 'locked' ? 'text-white/90' : 'text-on-surface')}>{stage.sub}</span>
-                  </li>
-                ))}
-              </ol>
-              <Callout tone="info" icon="encrypted" title="Zero-officer visibility active" className="mt-5">
-                Technical documents are encrypted inside the sovereign vault. Procurement officers and evaluation committees cannot view your bid, compliance scores or financial envelope until the public decryption on{' '}
-                <strong>05 Oct 2026</strong>. <span className="font-mono text-[12px]">SHA256-8f9b4c02…a104e</span>
-              </Callout>
+              {recent.length > 0 ? (
+                <Table minWidth={640}>
+                  <THead>
+                    <tr>
+                      <Th className="pl-6">Tender</Th>
+                      <Th>Submitted</Th>
+                      <Th>Status</Th>
+                      <Th align="right" className="pr-6">
+                        <span className="sr-only">Action</span>
+                      </Th>
+                    </tr>
+                  </THead>
+                  <TBody>
+                    {recent.map((bid) => {
+                      const t = tenderOf(bid);
+                      return (
+                        <Tr key={bid._id}>
+                          <Td className="pl-6">
+                            <CellStack primary={t?.title ?? 'Unknown tender'} secondary={<span className="font-mono text-[12px]">{bid.bidReference ?? bid._id} · {t?.tenderNumber}</span>} />
+                          </Td>
+                          <Td className="text-body-sm text-on-surface-variant">{bid.submittedAt ? new Date(bid.submittedAt).toLocaleString('en-IN') : '—'}</Td>
+                          <Td>
+                            <StatusBadge status={bid.status} />
+                          </Td>
+                          <Td align="right" className="pr-6">
+                            <Button variant="ghost" size="sm" rightIcon="chevron_right" to={`/my-bids/${bid._id}`}>
+                              View
+                            </Button>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
+                  </TBody>
+                </Table>
+              ) : (
+                <div className="px-6 pb-6">
+                  <EmptyState icon="inbox" title="No submissions yet" description="Submitted bids will appear here." />
+                </div>
+              )}
             </Card>
           </div>
 
@@ -318,58 +230,35 @@ export function DashboardPage() {
             <Card>
               <CardHeader title="Quick actions" className="mb-3" />
               <div className="-mx-2 flex flex-col">
-                {QUICK_ACTIONS.map((a) => {
-                  const iconChip = (
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-control bg-surface-container-low text-on-surface-variant transition-colors group-hover:bg-info-container group-hover:text-secondary">
-                      <Icon name={a.icon} size="md" />
-                    </span>
-                  );
-                  const label = <span className="flex-1 text-[14px] font-medium text-on-surface">{a.label}</span>;
-                  if (!a.to) {
-                    // Not built yet — shown plainly, not as a clickable action, so nothing implies it works.
-                    return (
-                      <div key={a.label} className="flex items-center gap-3 rounded-control px-2 py-2.5 opacity-70">
-                        {iconChip}
-                        {label}
-                        <Tag>Soon</Tag>
-                      </div>
-                    );
-                  }
-                  return (
-                    <Link key={a.label} to={a.to} className="group focus-ring flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-surface-container-low">
-                      {iconChip}
-                      {label}
-                      {a.badge ? <StatusBadge tone="warning">{a.badge}</StatusBadge> : <Icon name="chevron_right" size="md" className="text-outline transition-transform group-hover:translate-x-0.5" />}
-                    </Link>
-                  );
-                })}
+                <Link to="/tenders" className="group focus-ring flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-surface-container-low">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-control bg-surface-container-low text-on-surface-variant transition-colors group-hover:bg-info-container group-hover:text-secondary">
+                    <Icon name="travel_explore" size="md" />
+                  </span>
+                  <span className="flex-1 text-[14px] font-medium text-on-surface">Search public tenders</span>
+                  <Icon name="chevron_right" size="md" className="text-outline transition-transform group-hover:translate-x-0.5" />
+                </Link>
+                <Link to="/my-bids" className="group focus-ring flex items-center gap-3 rounded-control px-2 py-2.5 transition-colors hover:bg-surface-container-low">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-control bg-surface-container-low text-on-surface-variant transition-colors group-hover:bg-info-container group-hover:text-secondary">
+                    <Icon name="mark_email_read" size="md" />
+                  </span>
+                  <span className="flex-1 text-[14px] font-medium text-on-surface">View my bid envelopes</span>
+                  <Icon name="chevron_right" size="md" className="text-outline transition-transform group-hover:translate-x-0.5" />
+                </Link>
               </div>
             </Card>
 
-            <Card>
-              <CardHeader title="Important alerts" actions={<StatusBadge tone="danger">{ALERTS.length}</StatusBadge>} className="mb-4" />
-              <div className="flex flex-col gap-3">
-                {ALERTS.map((a) => (
-                  <Callout key={a.label} tone={a.tone} title={a.label}>
-                    {a.body}
-                  </Callout>
-                ))}
-              </div>
-            </Card>
-
-            <Card>
-              <CardHeader title="Recent activity" className="mb-5" />
-              <ol className="relative flex flex-col gap-5 pl-6 before:absolute before:left-[7px] before:top-1.5 before:bottom-1.5 before:w-px before:bg-outline-variant">
-                {ACTIVITY_FEED.map((item) => (
-                  <li key={item.time + item.text} className="relative">
-                    <span className={cn('absolute -left-6 top-1 h-[15px] w-[15px] rounded-full border-[3px] border-surface-container-lowest', item.live ? 'bg-secondary' : 'bg-outline-variant')} aria-hidden="true" />
-                    <div className="text-[12px] text-on-surface-variant num">{item.time}</div>
-                    <div className="mt-0.5 text-[14px] font-medium text-on-surface">{item.text}</div>
-                    <div className="text-body-sm text-on-surface-variant">{item.sub}</div>
-                  </li>
-                ))}
-              </ol>
-            </Card>
+            {closingSoon.length > 0 && (
+              <Card>
+                <CardHeader title="Closing soon" actions={<StatusBadge tone="warning">{closingSoon.length}</StatusBadge>} className="mb-4" />
+                <div className="flex flex-col gap-3">
+                  {closingSoon.slice(0, 3).map((t) => (
+                    <Callout key={t._id} tone="warning" title={t.tenderNumber}>
+                      {t.title} closes {new Date(t.submissionDeadline).toLocaleString('en-IN')}.
+                    </Callout>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             <Card tone="subtle">
               <div className="flex items-start gap-3">
@@ -377,18 +266,8 @@ export function DashboardPage() {
                   <Icon name="support_agent" size="lg" />
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[14px] font-semibold text-on-surface">Bidder help & DSC diagnostics</div>
-                  <div className="mt-0.5 text-body-sm text-on-surface-variant">
-                    Technical desk <strong className="text-on-surface num">1800-425-7800</strong> · 09:00–18:00 IST
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
-                    <Button variant="link" size="sm" leftIcon="download">
-                      Signer utility v2.4
-                    </Button>
-                    <Button variant="link" size="sm" leftIcon="play_circle">
-                      Bidding walkthrough
-                    </Button>
-                  </div>
+                  <div className="text-[14px] font-semibold text-on-surface">Bidder help</div>
+                  <div className="mt-0.5 text-body-sm text-on-surface-variant">Technical desk <strong className="text-on-surface num">1800-425-7800</strong> · 09:00–18:00 IST</div>
                 </div>
               </div>
             </Card>

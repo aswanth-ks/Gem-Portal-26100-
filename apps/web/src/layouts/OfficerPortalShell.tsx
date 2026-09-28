@@ -2,10 +2,11 @@
 // with the officer navigation (from Stitch "O02 — Procurement Officer
 // Dashboard") and officer identity. Same design as the bidder portal.
 //
-// TODO: connect the identity to the authenticated officer session.
+// Identity shown comes from the signed-in officer's session (officer JWT).
 
 import type { ReactNode } from 'react';
 import { PortalShell, type PortalConfig } from './PortalShell';
+import { getOfficerSession } from '@/lib/api';
 
 const OFFICER_CONFIG: PortalConfig = {
   brandTitle: 'CPCL Procurement',
@@ -39,18 +40,23 @@ const OFFICER_CONFIG: PortalConfig = {
     },
   ],
   identity: {
-    initials: 'AK',
-    name: 'Arun Kumar',
-    id: 'CPCL-OFF-4092',
-    headerName: 'Arun Kumar',
+    initials: 'PO',
+    name: 'Procurement officer',
+    id: '',
+    headerName: 'Procurement officer',
     role: 'Procurement officer',
-    status: 'DSC Level-3 active',
+    status: 'Signed in',
   },
 };
 
 export function OfficerPortalShell({ breadcrumb, bare, children }: { breadcrumb?: string; bare?: boolean; children: ReactNode }) {
+  const session = getOfficerSession();
+  const email = session?.email ?? '';
+  const config: PortalConfig = email
+    ? { ...OFFICER_CONFIG, identity: { ...OFFICER_CONFIG.identity, initials: email.slice(0, 2).toUpperCase(), name: email, id: email, headerName: email } }
+    : OFFICER_CONFIG;
   return (
-    <PortalShell config={OFFICER_CONFIG} breadcrumb={breadcrumb} bare={bare}>
+    <PortalShell config={config} breadcrumb={breadcrumb} bare={bare}>
       {children}
     </PortalShell>
   );

@@ -3,13 +3,17 @@
 // 6921642772921774119, screen e247119de66c43849f8b25f68ead7ed4) on the shared
 // OfficerPortalShell and design-system primitives.
 //
-// Reached from "Create tender" on /officer/tenders. Title counter, tender
-// value in words, schedule checks (CVC 14-day window, opening ≥ deadline +30m),
-// yes/no toggles, autosave indicator and the Save/Discard modals are React state.
-//
-// TODO: POST /api/officer/tenders/drafts. "Continue" routes to O05 Tender Documents.
+// Phase 2: real MongoDB-backed draft. On mount this creates (or resumes, via
+// createTender.ts's sessionStorage draft id) a real Tender document through
+// POST/GET /api/officer/tenders, and "Continue" persists the fields that
+// exist on the real schema (tenderNumber, title, description, department,
+// value, submissionStart, submissionDeadline) via PATCH. Fields with no
+// equivalent on the Tender model (tender type, subcategory, ministry, nodal
+// officer contact, EMD protocol, bid-opening time, modify/withdraw policy)
+// remain local UI state only — clearly out of scope for this phase's schema,
+// not silently dropped without notice.
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { OfficerPortalShell } from '@/layouts/OfficerPortalShell';
 import { BidActionBar } from '@/pages/tenders/bid/BidWorkspaceChrome';
@@ -29,8 +33,9 @@ import {
   Tag,
 } from '@/components/primitives';
 import { cn } from '@/utils/cn';
-import { CREATE_TENDER_ROUTES, CREATE_TENDER_STEPS, DRAFT_REF } from './createTender';
-
+import { CREATE_TENDER_ROUTES, CREATE_TENDER_STEPS, getDraftTenderId, setDraftTenderId } from './createTender';
+import { officerApi, ApiError } from '@/lib/api';
+import type { ApiTender, EvaluationMode } from '@/lib/types';
 
 // Indian numbering in words (up to crores) for the tender value notation.
 const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -62,6 +67,12 @@ function groupIndian(digits: string) {
 
 const HOUR = 3600_000;
 
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function YesNo({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <div role="radiogroup" aria-label={label} className="inline-flex shrink-0 rounded-control border border-outline-variant bg-surface-container-low p-1">
@@ -87,12 +98,7 @@ export function YesNo({ value, onChange, label }: { value: boolean; onChange: (v
 function Section({ index, icon, title, description, badge, children }: { index: number; icon: string; title: string; description: string; badge?: ReactNode; children: ReactNode }) {
   return (
     <Card padding="lg" as="section" aria-labelledby={`sec-${index}`}>
-      <CardHeader
-        icon={icon}
-        title={<span id={`sec-${index}`}>{index}. {title}</span>}
-        description={description}
-        actions={badge}
-      />
+      <CardHeader icon={icon} title={<span id={`sec-${index}`}>{index}. {title}</span>} description={description} actions={badge} />
       {children}
     </Card>
   );
@@ -100,68 +106,180 @@ function Section({ index, icon, title, description, badge, children }: { index: 
 
 export function CreateTenderInfoPage() {
   const navigate = useNavigate();
-  const [title, setTitle] = useState('Supply of CCTV Cameras for Public Safety Infrastructure');
-  const [value, setValue] = useState('4250000');
-  const [issue, setIssue] = useState('2026-09-20T10:00');
-  const [start, setStart] = useState('2026-09-20T11:00');
-  const [deadline, setDeadline] = useState('2026-10-04T17:00');
-  const [opening, setOpening] = useState('2026-10-04T17:30');
+
+  const [tenderId, setTenderId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  const [tenderNumber, setTenderNumber] = useState('');
+  const [title, setTitle] = useState('');
+  const [department, setDepartment] = useState('');
+  const [description, setDescription] = useState('');
+  const [value, setValue] = useState('');
+  const [start, setStart] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [evaluationMode, setEvaluationMode] = useState<EvaluationMode>('SEALED');
+
+  // Cosmetic-only fields — not part of the real Tender schema this phase.
+  const [issue, setIssue] = useState(() => new Date().toISOString().slice(0, 16));
+  const [opening, setOpening] = useState('');
   const [allowModify, setAllowModify] = useState(true);
   const [allowWithdraw, setAllowWithdraw] = useState(false);
-  const [savedAgo, setSavedAgo] = useState(14);
+
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [continuing, setContinuing] = useState(false);
 
+  // Guards against React StrictMode's dev-only double effect invocation
+  // firing two create/resume requests. The ref (not state) survives the
+  // synchronous mount→cleanup→mount that StrictMode performs, so the second
+  // invocation reuses the first's in-flight promise instead of racing it.
+  // The backend is independently idempotent too (POST accepts a draftId and
+  // resumes rather than creates) — this is belt-and-suspenders, not the only
+  // safeguard.
+  const initRef = useRef<Promise<ApiTender> | null>(null);
+
   useEffect(() => {
-    const t = setInterval(() => setSavedAgo((s) => s + 10), 10_000);
-    return () => clearInterval(t);
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!initRef.current) {
+          const existingId = getDraftTenderId();
+          initRef.current = (async () => {
+            if (existingId) {
+              try {
+                const existing = await officerApi.get<ApiTender>(`/tenders/${existingId}`);
+                // A sessionStorage id can point at a tender that has since been
+                // published/closed (e.g. the officer published one tender, then
+                // came back to "Create tender" to start another). That tender
+                // is locked server-side anyway — showing it here as an
+                // editable draft would be wrong, so start a genuinely new one
+                // instead of "resuming" it.
+                if (existing.status === 'draft') return existing;
+              } catch (err) {
+                // The id can also point at a tender that no longer exists at
+                // all (e.g. the database was reset/cleared for a fresh test
+                // run while this browser tab still had an old draft id in
+                // sessionStorage). A 404 here just means "nothing to resume"
+                // — fall through and create a new draft instead of surfacing
+                // an error for something the officer never asked to load.
+                if (!(err instanceof ApiError) || err.status !== 404) throw err;
+              }
+            }
+            return officerApi.post<ApiTender>('/tenders', {});
+          })();
+        }
+        const tender = await initRef.current;
+        setDraftTenderId(tender._id);
+        if (cancelled) return;
+        setTenderId(tender._id);
+        setTenderNumber(tender.tenderNumber.startsWith('DRAFT-') ? '' : tender.tenderNumber);
+        setTitle(tender.title);
+        setDepartment(tender.department.trim());
+        setDescription(tender.description.trim());
+        setValue(tender.value.replace(/[^\d]/g, '').trim());
+        setStart(toLocalInput(tender.submissionStart));
+        setDeadline(toLocalInput(tender.submissionDeadline));
+        setOpening(toLocalInput(new Date(new Date(tender.submissionDeadline).getTime() + 30 * 60 * 1000).toISOString()));
+        setEvaluationMode(tender.evaluationMode ?? 'SEALED');
+        setLoaded(true);
+      } catch (err) {
+        if (cancelled) return;
+        setLoadError(err instanceof ApiError ? err.message : 'Could not load or create the draft tender.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const savedLabel = savedAgo < 60 ? `${savedAgo}s ago` : `${Math.floor(savedAgo / 60)}m ago`;
-
   const schedule = useMemo(() => {
-    const [i, s, d, o] = [issue, start, deadline, opening].map((v) => new Date(v).getTime());
+    const [i, s, d, o] = [issue, start, deadline, opening].map((v) => (v ? new Date(v).getTime() : NaN));
     const windowDays = (d - s) / (24 * HOUR);
-    return {
-      windowDays,
-      startOk: s >= i,
-      windowOk: windowDays >= 14,
-      openingOk: o - d >= HOUR / 2,
-    };
+    return { windowDays, startOk: s >= i, windowOk: windowDays >= 14, openingOk: o - d >= HOUR / 2 };
   }, [issue, start, deadline, opening]);
   const scheduleOk = schedule.startOk && schedule.windowOk && schedule.openingOk;
   const titleOk = title.trim().length > 0 && title.length <= 180;
   const valueNum = Number(value) || 0;
-  const canContinue = scheduleOk && titleOk && valueNum > 0;
+  const tenderNumberOk = tenderNumber.trim().length > 0;
+  const canContinue = scheduleOk && titleOk && valueNum > 0 && tenderNumberOk && department.trim().length > 0;
 
-  const deadlineLabel = new Date(deadline).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+  const deadlineLabel = deadline ? new Date(deadline).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
 
-  function handleContinue() {
+  async function persist(status?: 'draft' | 'published'): Promise<boolean> {
+    if (!tenderId) return false;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await officerApi.patch<ApiTender>(`/tenders/${tenderId}`, {
+        tenderNumber: tenderNumber.trim(),
+        title: title.trim(),
+        department: department.trim(),
+        description: description.trim(),
+        value: value ? `₹ ${groupIndian(value)} (excl. GST)` : '',
+        submissionStart: new Date(start).toISOString(),
+        submissionDeadline: new Date(deadline).toISOString(),
+        evaluationMode,
+        ...(status ? { status } : {}),
+      });
+      setSavedAt(new Date());
+      return true;
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Could not save this tender.');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleContinue() {
     setContinuing(true);
-    setTimeout(() => navigate(CREATE_TENDER_ROUTES.documents), 500);
+    const ok = await persist();
+    setContinuing(false);
+    if (ok) navigate(CREATE_TENDER_ROUTES.documents);
+  }
+
+  if (loadError) {
+    return (
+      <OfficerPortalShell breadcrumb="Create tender">
+        <Callout tone="danger" title="Could not open the draft tender">
+          {loadError}
+        </Callout>
+      </OfficerPortalShell>
+    );
+  }
+
+  if (!loaded) {
+    return (
+      <OfficerPortalShell breadcrumb="Create tender">
+        <div className="flex h-64 items-center justify-center text-on-surface-variant">
+          <Icon name="progress_activity" className="animate-spin" size="lg" />
+        </div>
+      </OfficerPortalShell>
+    );
   }
 
   return (
     <OfficerPortalShell breadcrumb="Create tender">
       <div className="flex flex-col gap-6 pb-28">
         <PageHeader
-          breadcrumbs={[
-            { label: 'Officer workspace', to: '/officer/dashboard' },
-            { label: 'Tenders', to: '/officer/tenders' },
-            { label: `Create tender (${DRAFT_REF})` },
-          ]}
+          breadcrumbs={[{ label: 'Officer workspace', to: '/officer/dashboard' }, { label: 'Tenders', to: '/officer/tenders' }, { label: 'Create tender' }]}
           eyebrow={
             <>
               <StatusBadge tone="neutral">Draft</StatusBadge>
-              <Tag mono>{DRAFT_REF}</Tag>
-              <span className="inline-flex items-center gap-1 text-[12px] font-medium text-success-on-container">
-                <Icon name="check_circle" size="xs" fill /> Draft saved ({savedLabel})
-              </span>
+              {tenderId && <Tag mono>{tenderId.slice(-8)}</Tag>}
+              {savedAt && (
+                <span className="inline-flex items-center gap-1 text-[12px] font-medium text-success-on-container">
+                  <Icon name="check_circle" size="xs" fill /> Saved {savedAt.toLocaleTimeString()}
+                </span>
+              )}
             </>
           }
           title="Create tender"
-          description="Establish the statutory master record, authority jurisdiction and GFR schedule before proceeding to document upload."
+          description="Establish the statutory master record before proceeding to document upload."
           actions={
             <Button variant="secondary" leftIcon="arrow_back" to="/officer/tenders">
               Back to tenders
@@ -173,8 +291,13 @@ export function CreateTenderInfoPage() {
           <Stepper steps={CREATE_TENDER_STEPS} current={1} />
         </Card>
 
-        {/* 1. Basic information */}
-        <Section index={1} icon="assignment" title="Basic tender information" description="Define the primary statutory identity and categorization of this procurement opportunity." badge={<Tag>Statutory core</Tag>}>
+        {saveError && (
+          <Callout tone="danger" title="Could not save">
+            {saveError}
+          </Callout>
+        )}
+
+        <Section index={1} icon="assignment" title="Basic tender information" description="Define the primary identity of this procurement opportunity." badge={<Tag>Persisted</Tag>}>
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <Field
               className="md:col-span-2"
@@ -186,176 +309,109 @@ export function CreateTenderInfoPage() {
             >
               <Input id="ti-title" value={title} onChange={(e) => setTitle(e.target.value)} state={titleOk ? 'default' : 'error'} placeholder="e.g. Procurement of High-Pressure Gas Recirculation Valves" />
             </Field>
-            <Field label="Tender reference number" htmlFor="ti-ref" required helper="Unique sovereign reference in the CVC directory" valid="Available">
-              <Input id="ti-ref" defaultValue="CPCL/PROC/2026/041" className="font-mono" />
+            <Field label="Tender reference number" htmlFor="ti-ref" required helper="Unique reference — required before publish" error={!tenderNumberOk ? 'Tender reference is required' : undefined}>
+              <Input id="ti-ref" value={tenderNumber} onChange={(e) => setTenderNumber(e.target.value)} state={tenderNumberOk ? 'default' : 'error'} className="font-mono" placeholder="CPCL/PROC/2026/0xx" />
             </Field>
-            <Field label="Tender type" htmlFor="ti-type" required>
-              <Select id="ti-type" defaultValue="open">
-                <option value="open">Open tender (National Competitive Bidding)</option>
-                <option value="limited">Limited tender enquiry</option>
-                <option value="eoi">Expression of Interest (EOI)</option>
-                <option value="rfq">Request for Quotation (RFQ)</option>
-                <option value="single">Single tender / PAC (proprietary article)</option>
-              </Select>
-            </Field>
-            <Field label="Procurement category" htmlFor="ti-cat" required>
-              <Select id="ti-cat" defaultValue="telecom">
-                <option value="hardware">Equipment / hardware</option>
-                <option value="civil">Civil & structural works</option>
-                <option value="electrical">Electrical & instrumentation</option>
-                <option value="services">Services & plant maintenance</option>
-                <option value="telecom">IT & industrial telecommunications</option>
-              </Select>
-            </Field>
-            <Field label="Subcategory / classification" htmlFor="ti-sub">
-              <Input id="ti-sub" defaultValue="CCTV & Surveillance Infrastructure" />
+            <Field label="Administrative department" htmlFor="ti-min" required>
+              <Input id="ti-min" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g. Refinery Unit-I Security Wing" />
             </Field>
           </div>
         </Section>
 
-        {/* 2. Authority & scope */}
-        <Section index={2} icon="account_balance" title="Procurement authority & scope" description="Specify the procuring administrative unit, execution location and financial sanction." badge={<Tag>CPCL Directorate</Tag>}>
+        <Section index={2} icon="account_balance" title="Scope & estimated value" description="Financial sanction and work description." badge={<Tag>Persisted</Tag>}>
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <Field label="Issuing organization" htmlFor="ti-org" required helper="Pre-bound to officer authentication session">
-              <Input id="ti-org" value="Chennai Petroleum Corporation Limited (CPCL)" disabled rightIcon="lock" readOnly />
-            </Field>
-            <Field label="Administrative ministry / department" htmlFor="ti-min" required>
-              <Input id="ti-min" defaultValue="Ministry of Petroleum & Natural Gas (MoP&NG)" />
-            </Field>
-            <Field label="Execution / delivery location" htmlFor="ti-loc" required>
-              <Input id="ti-loc" defaultValue="CPCL Manali Refinery, Chennai - 600068" leftIcon="pin_drop" />
-            </Field>
             <Field
               label="Estimated tender value"
               htmlFor="ti-val"
               required
-              aside={<Tag>GFR Rule 149</Tag>}
               helper={valueNum ? <>Notation: <span className="font-medium text-on-surface">{inWords(valueNum)} Only</span></> : 'Enter the sanctioned estimate in INR'}
               error={!valueNum ? 'Estimated value is required' : undefined}
             >
-              <Input
-                id="ti-val"
-                inputMode="numeric"
-                leftIcon="currency_rupee"
-                className="num"
-                state={valueNum ? 'default' : 'error'}
-                value={groupIndian(value)}
-                onChange={(e) => setValue(e.target.value.replace(/\D/g, '').slice(0, 12))}
-              />
+              <Input id="ti-val" inputMode="numeric" leftIcon="currency_rupee" className="num" state={valueNum ? 'default' : 'error'} value={groupIndian(value)} onChange={(e) => setValue(e.target.value.replace(/\D/g, '').slice(0, 12))} />
             </Field>
-            <Field className="md:col-span-2" label="Tender description & work scope" htmlFor="ti-desc" required aside={<span className="text-[12px] text-on-surface-variant">Excludes evaluation criteria</span>}>
+            <Field label="Issuing organization" htmlFor="ti-org" helper="Fixed for this deployment">
+              <Input id="ti-org" value="Chennai Petroleum Corporation Limited (CPCL)" disabled rightIcon="lock" readOnly />
+            </Field>
+            <Field className="md:col-span-2" label="Tender description & work scope" htmlFor="ti-desc" required>
               <textarea
                 id="ti-desc"
                 rows={4}
-                defaultValue="Supply, installation, testing and commissioning of IP-based CCTV surveillance cameras, NVR storage and control-room integration across Refinery Units I–III, including 3 years of comprehensive maintenance."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe the scope of work"
                 className="w-full rounded-control border border-outline-variant bg-surface-container-lowest px-3.5 py-3 text-[14px] text-on-surface outline-none transition-all placeholder:text-outline hover:border-outline/60 focus:border-secondary focus:shadow-focus"
               />
             </Field>
           </div>
-          <Callout tone="info" icon="info" className="mt-5">
-            Bidder requirements are set in Step 3 and evaluation rules in Step 4. Do not embed scoring matrices here.
-          </Callout>
         </Section>
 
-        {/* 3. Schedule */}
-        <Section
-          index={3}
-          icon="calendar_clock"
-          title="Submission schedule & timelines"
-          description="Statutory critical dates compliant with Central Vigilance Commission tender floating timelines."
-          badge={<StatusBadge tone="info">Min 14-day window</StatusBadge>}
-        >
+        <Section index={3} icon="calendar_clock" title="Submission schedule & timelines" description="Statutory critical dates." badge={<StatusBadge tone="info">Min 14-day window</StatusBadge>}>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-            <Field label="Tender issue date" htmlFor="ti-issue" required helper="Notice floating date">
+            <Field label="Tender issue date" htmlFor="ti-issue" required helper="Cosmetic — not persisted this phase">
               <Input id="ti-issue" type="datetime-local" value={issue} onChange={(e) => setIssue(e.target.value)} />
             </Field>
-            <Field label="Bid submission start" htmlFor="ti-start" required error={!schedule.startOk ? 'Must be on/after issue date' : undefined} helper="Gateway unsealed for bids">
+            <Field label="Bid submission start" htmlFor="ti-start" required error={!schedule.startOk ? 'Must be on/after issue date' : undefined}>
               <Input id="ti-start" type="datetime-local" value={start} state={schedule.startOk ? 'default' : 'error'} onChange={(e) => setStart(e.target.value)} />
             </Field>
-            <Field
-              label="Submission deadline"
-              htmlFor="ti-deadline"
-              required
-              error={!schedule.windowOk ? `Window is ${schedule.windowDays.toFixed(1)} days (min 14)` : undefined}
-              helper={`Hard-lock cutoff (${schedule.windowDays.toFixed(1)}-day window)`}
-            >
+            <Field label="Submission deadline" htmlFor="ti-deadline" required error={!schedule.windowOk ? `Window is ${schedule.windowDays.toFixed(1)} days (min 14)` : undefined}>
               <Input id="ti-deadline" type="datetime-local" value={deadline} state={schedule.windowOk ? 'default' : 'error'} onChange={(e) => setDeadline(e.target.value)} />
             </Field>
-            <Field label="Technical bid opening" htmlFor="ti-open" required error={!schedule.openingOk ? 'Min 30 min after deadline' : undefined} helper="Min +30 min post deadline">
+            <Field label="Technical bid opening" htmlFor="ti-open" required error={!schedule.openingOk ? 'Min 30 min after deadline' : undefined} helper="Cosmetic — not persisted this phase">
               <Input id="ti-open" type="datetime-local" value={opening} state={schedule.openingOk ? 'default' : 'error'} onChange={(e) => setOpening(e.target.value)} />
             </Field>
-            <Field label="Bid validity period" htmlFor="ti-validity" required helper="From technical bid opening">
-              <Select id="ti-validity" defaultValue="90">
-                {[60, 90, 120, 180].map((d) => (
-                  <option key={d} value={d}>
-                    {d} days
-                  </option>
-                ))}
-              </Select>
-            </Field>
           </div>
-          <Callout
-            tone={scheduleOk ? 'success' : 'danger'}
-            icon={scheduleOk ? 'check_circle' : 'error'}
-            title={scheduleOk ? 'All statutory schedule constraints satisfied' : 'Schedule violates statutory constraints'}
-            className="mt-5"
-          >
-            Start ≥ issue · submission window ≥ 14 days (CVC 2024) · opening ≥ deadline + 30 min
+          <Callout tone={scheduleOk ? 'success' : 'danger'} icon={scheduleOk ? 'check_circle' : 'error'} title={scheduleOk ? 'Schedule constraints satisfied' : 'Schedule violates constraints'} className="mt-5">
+            Start ≥ issue · submission window ≥ 14 days · opening ≥ deadline + 30 min
           </Callout>
         </Section>
 
-        {/* 4. Nodal officer */}
-        <Section index={4} icon="badge" title="Nodal officer & tender contact" description="Designated authority for statutory clarifications, pre-bid meetings and vendor communication." badge={<Tag>DSC signatory</Tag>}>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <Field label="Nodal officer name" htmlFor="ti-no-name" required>
-              <Input id="ti-no-name" defaultValue="Arun Kumar" />
-            </Field>
-            <Field label="Designation" htmlFor="ti-no-des" required>
-              <Input id="ti-no-des" defaultValue="Senior Procurement Officer (Refinery Directorate)" />
-            </Field>
-            <Field label="Official email" htmlFor="ti-no-mail" required valid="Verified" helper="Authenticated corporate government domain">
-              <Input id="ti-no-mail" type="email" defaultValue="arun.kumar@cpcl.co.in" rightIcon="verified" state="valid" />
-            </Field>
-            <Field label="Official desk / telephone" htmlFor="ti-no-tel" required helper="Available 09:00 – 17:30 IST">
-              <Input id="ti-no-tel" defaultValue="+91 (044) 2594 4092 (Ext: 4402)" leftIcon="call" />
-            </Field>
+        <Section index={4} icon="visibility" title="Evaluation mode" description="Controls when an officer may see a submitted bid's already-computed compliance assessment — never whether or when it is computed." badge={<Tag>Persisted</Tag>}>
+          <div role="radiogroup" aria-label="Evaluation mode" className="flex flex-col gap-3">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={evaluationMode === 'SEALED'}
+              onClick={() => setEvaluationMode('SEALED')}
+              className={cn('flex items-start gap-3 rounded-card border p-4 text-left transition-colors focus-ring', evaluationMode === 'SEALED' ? 'border-secondary bg-info-container/30' : 'border-outline-variant hover:border-outline/60')}
+            >
+              <span className={cn('mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2', evaluationMode === 'SEALED' ? 'border-secondary' : 'border-outline-variant')}>
+                {evaluationMode === 'SEALED' && <span className="h-2.5 w-2.5 rounded-full bg-secondary" />}
+              </span>
+              <span>
+                <span className="block text-[14px] font-semibold text-on-surface">Sealed Evaluation</span>
+                <span className="block text-body-sm text-on-surface-variant">Bid assessment remains hidden from officers until the submission deadline.</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={evaluationMode === 'IMMEDIATE'}
+              onClick={() => setEvaluationMode('IMMEDIATE')}
+              className={cn('flex items-start gap-3 rounded-card border p-4 text-left transition-colors focus-ring', evaluationMode === 'IMMEDIATE' ? 'border-secondary bg-info-container/30' : 'border-outline-variant hover:border-outline/60')}
+            >
+              <span className={cn('mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2', evaluationMode === 'IMMEDIATE' ? 'border-secondary' : 'border-outline-variant')}>
+                {evaluationMode === 'IMMEDIATE' && <span className="h-2.5 w-2.5 rounded-full bg-secondary" />}
+              </span>
+              <span>
+                <span className="block text-[14px] font-semibold text-on-surface">Immediate Evaluation — Demo Mode</span>
+                <span className="block text-body-sm text-on-surface-variant">Compliance evaluation runs automatically after bid submission and becomes available to authorized officers immediately.</span>
+              </span>
+            </button>
           </div>
         </Section>
 
-        {/* 5. Governance */}
-        <Section index={5} icon="gavel" title="Statutory parameters & governance protocol" description="Earnest money deposit, submission cryptography and two-envelope settings." badge={<StatusBadge tone="success">GFR compliant</StatusBadge>}>
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            <Field label="Bid security / EMD protocol" htmlFor="ti-emd" required>
-              <Select id="ti-emd" defaultValue="required">
-                <option value="required">Required: ₹ 85,000 (MSME/startups exempt)</option>
-                <option value="bid_sec_decl">Bid Securing Declaration (BSD) in lieu of EMD</option>
-                <option value="exempt">Fully exempt (inter-PSU / sovereign entity)</option>
-                <option value="fixed_pb">Performance bank guarantee only</option>
-              </Select>
-            </Field>
-            <Field label="Bid submission mode" htmlFor="ti-mode" required>
-              <Input id="ti-mode" value="Online (NIC e-Procurement · dual-key sealed HSM)" disabled readOnly rightIcon="lock" />
-            </Field>
-            <Field label="Tender evaluation system" htmlFor="ti-eval" required>
-              <Select id="ti-eval" defaultValue="two_envelope">
-                <option value="two_envelope">Two-envelope (technical, then financial)</option>
-                <option value="single_envelope">Single-envelope (technical & commercial)</option>
-                <option value="qcbs">QCBS (quality & cost based, 80:20)</option>
-              </Select>
-            </Field>
-          </div>
-          <div className="mt-5 divide-y divide-outline-variant rounded-card border border-outline-variant">
+        <Section index={5} icon="gavel" title="Additional protocol (not persisted this phase)" description="These settings are demo UI only — no backing field exists on the tender record yet." badge={<Tag>Local only</Tag>}>
+          <div className="divide-y divide-outline-variant rounded-card border border-outline-variant">
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-[14px] font-semibold text-on-surface">Allow bid modification before deadline</div>
-                <div className="text-body-sm text-on-surface-variant">Vendors can overwrite digitally signed packages prior to {deadlineLabel} IST</div>
+                <div className="text-body-sm text-on-surface-variant">Vendors can overwrite drafts prior to {deadlineLabel}</div>
               </div>
               <YesNo label="Allow bid modification" value={allowModify} onChange={setAllowModify} />
             </div>
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-[14px] font-semibold text-on-surface">Allow bid withdrawal before deadline</div>
-                <div className="text-body-sm text-on-surface-variant">Subject to EMD forfeiture conditions per General Financial Rule 170</div>
               </div>
               <YesNo label="Allow bid withdrawal" value={allowWithdraw} onChange={setAllowWithdraw} />
             </div>
@@ -366,7 +422,7 @@ export function CreateTenderInfoPage() {
       <BidActionBar
         left={
           <>
-            <Button variant="secondary" leftIcon="save" onClick={() => setExitOpen(true)}>
+            <Button variant="secondary" leftIcon="save" loading={saving} onClick={() => persist().then((ok) => ok && setExitOpen(true))}>
               Save draft & exit
             </Button>
             <Button variant="ghost" leftIcon="delete" className="text-danger" onClick={() => setDiscardOpen(true)}>
@@ -374,11 +430,7 @@ export function CreateTenderInfoPage() {
             </Button>
           </>
         }
-        center={
-          <span className="text-body-sm text-on-surface-variant">
-            Draft auto-saved {savedLabel} · {canContinue ? 'All mandatory metadata validated' : 'Resolve highlighted fields to continue'}
-          </span>
-        }
+        center={<span className="text-body-sm text-on-surface-variant">{canContinue ? 'All mandatory metadata validated' : 'Resolve highlighted fields to continue'}</span>}
         right={
           <Button rightIcon="arrow_forward" disabled={!canContinue} loading={continuing} onClick={handleContinue}>
             Continue to tender documents
@@ -392,7 +444,6 @@ export function CreateTenderInfoPage() {
         icon="save"
         size="md"
         title="Save draft & exit?"
-        description={DRAFT_REF}
         footer={
           <>
             <Button variant="secondary" onClick={() => setExitOpen(false)}>
@@ -402,9 +453,7 @@ export function CreateTenderInfoPage() {
           </>
         }
       >
-        <p className="text-body-md text-on-surface-variant">
-          Your tender draft is automatically synced to the sovereign repository. You can resume authoring from Tender Management at any time.
-        </p>
+        <p className="text-body-md text-on-surface-variant">Your tender draft is saved in MongoDB. You can resume authoring later.</p>
       </Modal>
 
       <Modal
@@ -425,11 +474,8 @@ export function CreateTenderInfoPage() {
           </>
         }
       >
-        <p className="text-body-md text-on-surface-variant">
-          This permanently deletes draft <span className="font-mono font-semibold text-on-surface">{DRAFT_REF}</span> and all pre-configured parameters. This cannot be undone.
-        </p>
+        <p className="text-body-md text-on-surface-variant">This leaves the draft tender record in place (no delete API exists this phase) but exits the wizard without publishing it.</p>
       </Modal>
-
     </OfficerPortalShell>
   );
 }
