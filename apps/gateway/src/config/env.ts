@@ -17,7 +17,8 @@ function required(name: string): string {
 }
 
 export const env = {
-  port: process.env.GATEWAY_PORT ? Number(process.env.GATEWAY_PORT) : 4000,
+  // Render (and most PaaS) inject PORT; prefer it, then GATEWAY_PORT, then 4000.
+  port: Number(process.env.PORT || process.env.GATEWAY_PORT || 4000),
   corsOrigin: process.env.GATEWAY_CORS_ORIGIN ?? 'http://localhost:5173',
   jwtSecret: required('GATEWAY_JWT_SECRET'),
   mongoUri: required('MONGODB_URI'),
