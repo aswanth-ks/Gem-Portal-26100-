@@ -8,16 +8,25 @@
 // stored via setOfficerToken and attached to every /api/officer call. The
 // security-code box is a client-side speed bump only, not a security control.
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Breadcrumbs, Button, Callout, Card, Field, Icon, IconButton, Input, StatusBadge } from '@/components/primitives';
-import { api, ApiError, officerLogin } from '@/lib/api';
+import { ApiError, officerLogin } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import { PublicFooter, PublicHeader } from '@/pages/home/PublicChrome';
 
 type Banner = { tone: 'danger' | 'warning'; icon: string; title: string; desc: string };
 
 const CAPTCHA_POOL = ['9KR74M', 'X3F89K', '7P2W4D', 'CP918V', '82MD5Q'];
+
+// SIH jury convenience — frontend-only, no backend/env dependency. The
+// controlled email/password inputs are initialized directly to these values
+// so they render pre-filled on load; CAPTCHA is left untouched (still
+// required, still must be entered) and the jury still clicks "Sign in to
+// workspace" to submit through the real, unchanged POST
+// /api/auth/officer-login flow.
+const SIH_DEMO_OFFICER_EMAIL = 'officer@cpcl.gov.in';
+const SIH_DEMO_OFFICER_PASSWORD = '123456789012';
 
 const LIFECYCLE = [
   { icon: 'edit_document', title: 'Tender creation', sub: 'Scope & specification drafting' },
@@ -36,7 +45,7 @@ const SECURITY = [
 export function OfficerLoginPage() {
   const location = useLocation();
   const expired = new URLSearchParams(location.search).get('expired') === '1';
-  const [values, setValues] = useState({ email: '', password: '', captcha: '' });
+  const [values, setValues] = useState({ email: SIH_DEMO_OFFICER_EMAIL, password: SIH_DEMO_OFFICER_PASSWORD, captcha: '' });
   const [errors, setErrors] = useState<{ email?: boolean; password?: boolean; captcha?: boolean }>({});
   const [showPassword, setShowPassword] = useState(false);
   const [captchaIdx, setCaptchaIdx] = useState(0);
@@ -47,28 +56,6 @@ export function OfficerLoginPage() {
   const navigate = useNavigate();
   const captchaCode = CAPTCHA_POOL[captchaIdx];
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
-  const [isDemoPrefilled, setIsDemoPrefilled] = useState(false);
-
-  // SIH jury convenience: only ever prefills (never auto-submits) when the
-  // server reports DEMO_MODE=true and an officer demo account is
-  // configured. The security-code field isn't a real control (see file
-  // header) — it's a client-side speed bump, so prefilling it with the
-  // already-visible code here is not a security change, only a UX one.
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<{ demoMode: boolean; demoAccounts?: { officer?: { email: string; password: string } } }>('/system/status')
-      .then((r) => {
-        if (cancelled || !r.demoMode || !r.demoAccounts?.officer) return;
-        setValues({ email: r.demoAccounts.officer.email, password: r.demoAccounts.officer.password, captcha: captchaCode });
-        setIsDemoPrefilled(true);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function refreshCaptcha() {
     setCaptchaIdx((i) => (i + 1) % CAPTCHA_POOL.length);
@@ -144,14 +131,23 @@ export function OfficerLoginPage() {
               </div>
 
               <form onSubmit={onSubmit} name="officer-login" noValidate className="flex flex-col gap-5 p-6 sm:p-8">
+                {/* Chrome ignores autoComplete="off" on login forms by design — the
+                    only reliable way to stop it applying a saved credential from the
+                    bidder login (same origin) onto this officer form is to give it a
+                    decoy pair of fields to autofill into instead. Hidden, not tab-
+                    reachable, never read from. */}
+                <div aria-hidden="true" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}>
+                  <input type="text" name="username" autoComplete="username" tabIndex={-1} />
+                  <input type="password" name="current-password" autoComplete="current-password" tabIndex={-1} />
+                </div>
                 {banner && (
                   <Callout tone={banner.tone} icon={banner.icon} title={banner.title}>
                     {banner.desc}
                   </Callout>
                 )}
-                {!banner && isDemoPrefilled && (
+                {!banner && (
                   <Callout tone="warning" icon="theaters" title="SIH Demo Account">
-                    Credentials are pre-filled for the jury demo. Just click Sign in.
+                    Credentials are pre-filled for the jury demo. Enter the security code shown, then click Sign in.
                   </Callout>
                 )}
 
