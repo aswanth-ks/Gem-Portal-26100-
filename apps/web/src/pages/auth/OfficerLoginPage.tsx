@@ -8,10 +8,10 @@
 // stored via setOfficerToken and attached to every /api/officer call. The
 // security-code box is a client-side speed bump only, not a security control.
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Breadcrumbs, Button, Callout, Card, Field, Icon, IconButton, Input, StatusBadge } from '@/components/primitives';
-import { ApiError, officerLogin } from '@/lib/api';
+import { api, ApiError, officerLogin } from '@/lib/api';
 import { cn } from '@/utils/cn';
 import { PublicFooter, PublicHeader } from '@/pages/home/PublicChrome';
 
@@ -47,6 +47,28 @@ export function OfficerLoginPage() {
   const navigate = useNavigate();
   const captchaCode = CAPTCHA_POOL[captchaIdx];
   const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+  const [isDemoPrefilled, setIsDemoPrefilled] = useState(false);
+
+  // SIH jury convenience: only ever prefills (never auto-submits) when the
+  // server reports DEMO_MODE=true and an officer demo account is
+  // configured. The security-code field isn't a real control (see file
+  // header) — it's a client-side speed bump, so prefilling it with the
+  // already-visible code here is not a security change, only a UX one.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ demoMode: boolean; demoAccounts?: { officer?: { email: string; password: string } } }>('/system/status')
+      .then((r) => {
+        if (cancelled || !r.demoMode || !r.demoAccounts?.officer) return;
+        setValues({ email: r.demoAccounts.officer.email, password: r.demoAccounts.officer.password, captcha: captchaCode });
+        setIsDemoPrefilled(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function refreshCaptcha() {
     setCaptchaIdx((i) => (i + 1) % CAPTCHA_POOL.length);
@@ -125,6 +147,11 @@ export function OfficerLoginPage() {
                 {banner && (
                   <Callout tone={banner.tone} icon={banner.icon} title={banner.title}>
                     {banner.desc}
+                  </Callout>
+                )}
+                {!banner && isDemoPrefilled && (
+                  <Callout tone="warning" icon="theaters" title="SIH Demo Account">
+                    Credentials are pre-filled for the jury demo. Just click Sign in.
                   </Callout>
                 )}
 

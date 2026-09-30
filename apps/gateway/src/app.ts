@@ -28,7 +28,26 @@ export function createApp(): Express {
   app.use(express.json());
 
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'gateway' });
+    res.json({ status: 'ok', service: 'gateway', demoMode: env.demoMode });
+  });
+
+  // Public, unauthenticated, side-effect-free — lets the frontend show a
+  // small "DEMO MODE" indicator without a dedicated /health proxy rule
+  // (this is under /api, which is already proxied/rewritten in both dev and
+  // production — see apps/web/vite.config.ts and the Render static-site
+  // rewrite rules).
+  app.get('/api/system/status', (_req, res) => {
+    if (!env.demoMode) {
+      res.json({ demoMode: false });
+      return;
+    }
+    res.json({
+      demoMode: true,
+      demoAccounts: {
+        ...(env.demoOfficerEmail && env.demoOfficerPassword ? { officer: { email: env.demoOfficerEmail, password: env.demoOfficerPassword } } : {}),
+        ...(env.demoBidderEmail && env.demoBidderPassword ? { bidder: { email: env.demoBidderEmail, password: env.demoBidderPassword } } : {}),
+      },
+    });
   });
 
   app.use('/api/auth', authRouter);

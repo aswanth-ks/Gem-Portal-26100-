@@ -30,6 +30,21 @@ export const env = {
   // thing that talks to it; the browser never reaches it directly, and it
   // never reaches Ollama directly either (see apps/ai/app/pipelines/llm).
   aiServiceUrl: process.env.GATEWAY_AI_SERVICE_URL ?? 'http://localhost:8000',
+  // Emergency deterministic demo mode (SIH recording reliability) — read
+  // from the same DEMO_MODE var the AI service reads (shared repo-root
+  // .env). The gateway itself doesn't change any behavior based on this; it
+  // only exposes it via /health so the frontend can show a small "DEMO
+  // MODE" indicator. See apps/ai/app/pipelines/demo/fixtures.py.
+  demoMode: process.env.DEMO_MODE === 'true',
+  // SIH jury login convenience only — served via GET /api/system/status when
+  // demoMode is true, so the login pages can prefill (never auto-submit)
+  // demo credentials without hardcoding them in frontend source. Blank
+  // (falsy) if not configured, which the route treats as "no prefill for
+  // that role" rather than an error.
+  demoOfficerEmail: process.env.DEMO_OFFICER_EMAIL || '',
+  demoOfficerPassword: process.env.DEMO_OFFICER_PASSWORD || '',
+  demoBidderEmail: process.env.DEMO_BIDDER_EMAIL || '',
+  demoBidderPassword: process.env.DEMO_BIDDER_PASSWORD || '',
   // Phase 9 — BHASHINI Setu/ULCA translation. Optional (translation is an
   // accessibility enhancement, not a dependency for the procurement
   // workflow) — left unset until real credentials exist, checked for

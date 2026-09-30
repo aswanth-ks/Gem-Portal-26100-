@@ -8,13 +8,13 @@
 // but is NOT a real security control — the gateway does not verify it. It
 // is cosmetic until a real CAPTCHA service is wired in.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Breadcrumbs, Button, Callout, Card, Field, Icon, IconButton, Input, StatusBadge } from '@/components/primitives';
 import { cn } from '@/utils/cn';
 import { PublicFooter, PublicHeader } from '@/pages/home/PublicChrome';
 import { useAuth } from '@/context/AuthContext';
-import { ApiError } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 
 const REQUIREMENTS = [
   ['Operating system', 'Windows 10/11 or Ubuntu 20.04+'],
@@ -26,12 +26,33 @@ export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('demo.bidder@example.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [isDemoPrefilled, setIsDemoPrefilled] = useState(false);
+
+  // SIH jury convenience: only ever prefills (never auto-submits) when the
+  // server reports DEMO_MODE=true and a bidder demo account is configured.
+  // DEMO_MODE=false (the default) means /system/status returns no
+  // demoAccounts, so the fields stay exactly as they were — blank.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<{ demoMode: boolean; demoAccounts?: { bidder?: { email: string; password: string } } }>('/system/status')
+      .then((r) => {
+        if (cancelled || !r.demoMode || !r.demoAccounts?.bidder) return;
+        setEmail(r.demoAccounts.bidder.email);
+        setPassword(r.demoAccounts.bidder.password);
+        setIsDemoPrefilled(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -79,7 +100,12 @@ export function LoginPage() {
               </div>
 
               <div className="flex flex-col gap-6 p-6 sm:p-8">
-                {!error && !success && (
+                {isDemoPrefilled && !error && !success && (
+                  <Callout tone="warning" icon="theaters" title="SIH Demo Account">
+                    Credentials are pre-filled for the jury demo. Just click Sign in.
+                  </Callout>
+                )}
+                {!isDemoPrefilled && !error && !success && (
                   <Callout tone="info" title="Authorized bidder access only">
                     Enter your registered login ID and password. Fields marked <span className="font-semibold text-danger">*</span> are mandatory.
                   </Callout>
