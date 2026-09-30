@@ -124,9 +124,12 @@ export function LoginPage() {
                   </Callout>
                 )}
 
-                <form onSubmit={handleSubmit} className={cn('flex flex-col gap-5 transition-opacity', formDisabled && 'pointer-events-none opacity-50')} aria-disabled={formDisabled}>
+                <form onSubmit={handleSubmit} name="bidder-login" className={cn('flex flex-col gap-5 transition-opacity', formDisabled && 'pointer-events-none opacity-50')} aria-disabled={formDisabled}>
                   <Field label="Login ID" htmlFor="login-id" required helper="Registered email ID" error={error ? 'Check your login ID' : undefined}>
-                    <Input id="login-id" name="login-id" type="email" required placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} leftIcon="person" state={error ? 'error' : 'default'} autoComplete="username" />
+                    {/* autoComplete deliberately off + a non-generic name — the officer and
+                        bidder login pages share an origin, and browsers can otherwise
+                        offer/apply the wrong saved credential across the two forms. */}
+                    <Input id="login-id" name="bidder-login-email" type="email" required placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} leftIcon="person" state={error ? 'error' : 'default'} autoComplete="off" />
                   </Field>
 
                   <Field
@@ -142,14 +145,14 @@ export function LoginPage() {
                   >
                     <Input
                       id="password-input"
-                      name="password"
+                      name="bidder-login-password"
                       type={showPassword ? 'text' : 'password'}
                       required
                       placeholder="Enter password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       leftIcon="key"
-                      autoComplete="current-password"
+                      autoComplete="off"
                       state={error ? 'error' : 'default'}
                       rightSlot={<IconButton size="sm" icon={showPassword ? 'visibility_off' : 'visibility'} aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((v) => !v)} />}
                     />

@@ -143,7 +143,7 @@ export function OfficerLoginPage() {
                 </span>
               </div>
 
-              <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5 p-6 sm:p-8">
+              <form onSubmit={onSubmit} name="officer-login" noValidate className="flex flex-col gap-5 p-6 sm:p-8">
                 {banner && (
                   <Callout tone={banner.tone} icon={banner.icon} title={banner.title}>
                     {banner.desc}
@@ -156,12 +156,15 @@ export function OfficerLoginPage() {
                 )}
 
                 <Field label="Official email" htmlFor="officer-email" required error={errors.email ? 'Email is required' : undefined}>
+                  {/* autoComplete deliberately off + a non-generic name — the officer
+                      and bidder login pages share an origin, and browsers can
+                      otherwise offer/apply the wrong saved credential across forms. */}
                   <Input
                     id="officer-email"
-                    name="email"
+                    name="officer-login-email"
                     type="email"
                     leftIcon="badge"
-                    autoComplete="username"
+                    autoComplete="off"
                     placeholder="name@cpcl.co.in"
                     value={values.email}
                     onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
@@ -180,10 +183,10 @@ export function OfficerLoginPage() {
                 >
                   <Input
                     id="officer-password"
-                    name="password"
+                    name="officer-login-password"
                     type={showPassword ? 'text' : 'password'}
                     leftIcon="lock"
-                    autoComplete="current-password"
+                    autoComplete="off"
                     placeholder="Enter password"
                     value={values.password}
                     onChange={(e) => setValues((v) => ({ ...v, password: e.target.value }))}
